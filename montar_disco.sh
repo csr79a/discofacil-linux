@@ -21,7 +21,7 @@
 set -euo pipefail
 
 PROG="$(basename "$0")"
-FSTAB="/etc/fstab"
+FSTAB="${FSTAB:-/etc/fstab}"
 
 log()  { printf '[%s] %s\n' "$PROG" "$*"; }
 err()  { printf '[%s] ERROR: %s\n' "$PROG" "$*" >&2; }
