@@ -225,8 +225,9 @@ cmd_mount() {
             fstype="ntfs-3g"
             ;;
         exfat)
-            command -v mount.exfat >/dev/null 2>&1 \
-                || die "filesystem exFAT pero no está instalado exfatprogs/exfat-utils"
+            grep -qw exfat /proc/filesystems || modprobe -q exfat 2>/dev/null \
+                || command -v mount.exfat >/dev/null 2>&1 \
+                || die "sin soporte exFAT (kernel >= 5.7 o exfat-fuse)"
             ;;
         *) die "filesystem '$fstype' no soportado por este script" ;;
     esac
