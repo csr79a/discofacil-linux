@@ -1,15 +1,15 @@
 # DiscoFácil Linux
 
-Una pequeña herramienta con interfaz gráfica para identificar una partición de datos, montarla bajo `/mnt` y añadir una entrada basada en UUID a `/etc/fstab` para que se monte al iniciar Linux.
+Una pequeña herramienta con interfaz gráfica para identificar particiones de datos, montarlas bajo `/mnt` y administrar su montaje persistente en `/etc/fstab`.
 
 > **Estado: experimental.** Se ha probado en un solo equipo. El objetivo es admitir distribuciones Linux comunes como Debian, Ubuntu, Arch Linux y Fedora, pero todavía no se ha verificado en todas ellas. Lee las limitaciones y precauciones antes de usarla.
 
 ## Qué incluye
 
 - `mount_disco_gui.py`: interfaz gráfica en PyQt6.
-- `montar_disco.sh`: lista particiones candidatas y realiza el montaje.
+- `montar_disco.sh`: lista, monta y desmonta particiones.
 
-La aplicación no formatea ni borra discos. Para montar y editar `/etc/fstab`, solicita privilegios mediante `sudo`. Antes de añadir una entrada, el script crea una copia de seguridad de `fstab`.
+La aplicación no formatea ni borra discos. Para montar, desmontar y editar `/etc/fstab`, solicita privilegios mediante `sudo`. Antes de añadir o quitar una entrada, el script crea una copia de seguridad de `fstab`.
 
 ## Requisitos
 
@@ -36,7 +36,13 @@ Inicia la interfaz:
 python3 mount_disco_gui.py
 ```
 
-La ventana lista las particiones candidatas. Selecciona una, revisa cuidadosamente el UUID y el punto de montaje sugerido, y pulsa **Montar y dejar permanente**. `sudo` solicitará la contraseña cuando sea necesario.
+La ventana lista las particiones candidatas y muestra su punto de montaje actual y su configuración de inicio.
+
+- **Montar y dejar permanente**: monta el disco y añade su UUID a `/etc/fstab`.
+- **Desmontar ahora**: desmonta solo la sesión actual; no consulta ni modifica `/etc/fstab`. Si tiene una entrada persistente, volverá a montarse al iniciar.
+- **Desmontar y quitar del inicio**: guarda una copia de `fstab`, desmonta el disco y quita únicamente la entrada inequívoca de ese UUID. Si el disco está ocupado, hay más de un montaje o los puntos no coinciden, aborta sin cambiar `fstab`.
+
+Las opciones de desmontaje nunca fuerzan la operación. `sudo` solicitará la contraseña cuando sea necesario.
 
 También se puede usar el script desde una terminal:
 
@@ -46,16 +52,30 @@ bash montar_disco.sh --list
 
 # Montar una partición y añadirla a /etc/fstab
 sudo bash montar_disco.sh --mount UUID /mnt/nombre
+
+# Desmontar ahora, sin modificar fstab
+sudo bash montar_disco.sh --unmount UUID /mnt/nombre
+
+# Desmontar y quitar la entrada persistente exacta de fstab
+sudo bash montar_disco.sh --disable UUID /mnt/nombre
 ```
 
-Sustituye `UUID` por el UUID exacto de la partición. El punto de montaje debe estar bajo `/mnt`; usa un nombre sencillo, por ejemplo `/mnt/juegos`.
+Sustituye `UUID` por el UUID exacto de la partición y usa el punto de montaje canónico que aparece en la lista, por ejemplo `/mnt/juegos`. Solo se admiten rutas sencillas bajo `/mnt`, sin espacios, enlaces simbólicos ni componentes `.` o `..`.
+
+## Pruebas
+
+Las pruebas de las operaciones de desmontaje usan un `fstab` temporal y simulaciones de `findmnt`, `umount` y `systemctl`; no desmontan unidades reales ni escriben en `/etc/fstab`:
+
+```bash
+bash tests/test_mount_operations.sh
+```
 
 ## Precauciones y limitaciones conocidas
 
 - Comprueba dos veces el dispositivo y su UUID antes de confirmar. Un montaje puede ocultar temporalmente los archivos que ya existan en el directorio de destino.
 - El script modifica `/etc/fstab`. Aunque crea una copia antes de añadir una entrada, revisa el resultado y conserva una copia de seguridad propia.
-- La comprobación actual del punto de montaje solo verifica que la ruta comience por `/mnt/`; no normaliza todos los componentes de la ruta. **No introduzcas rutas con `..`, rutas extrañas ni destinos que no controles.** Esta validación debe mejorarse antes de considerar el programa listo para uso general.
-- Si la partición ya está montada en otro lugar, el script puede informar que ya está montada y aun así intentar guardar el destino solicitado en `fstab`. Comprueba que el destino elegido coincide con el montaje actual.
+- Los puntos de montaje deben ser rutas canónicas sencillas bajo `/mnt`. Los desmontajes comparan el UUID, el destino persistente y los montajes activos; ante discrepancias o ambigüedades se niegan a continuar.
+- Si la partición ya está montada en otro lugar, el comando de montaje todavía puede avisar que ya está montada; comprueba que el destino elegido coincide con el montaje actual antes de añadir una entrada persistente.
 - No se ha probado todavía en una matriz de Debian, Ubuntu, Arch y Fedora, ni en todas sus variantes. Tampoco está pensado para macOS o Windows, ni para distribuciones que no usen systemd.
 
 ## Compatibilidad y aportes

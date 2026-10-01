@@ -1,6 +1,6 @@
 # Manual: crear y publicar el repositorio en GitHub
 
-Esta guía publica los dos programas y su documentación desde `~/Descargas/montar_disco`. No subas archivos adicionales de tu equipo.
+Esta guía publica los programas, la documentación y las pruebas desde `~/Descargas/montar_disco`. No subas archivos adicionales de tu equipo.
 
 ## 1. Elige el nombre
 
@@ -54,7 +54,7 @@ Ejecuta estos comandos desde `~/Descargas/montar_disco`:
 
 ```bash
 git init -b main
-git add .gitignore README.md MANUAL_PUBLICACION.md montar_disco.sh mount_disco_gui.py
+git add .gitignore README.md MANUAL_PUBLICACION.md montar_disco.sh mount_disco_gui.py tests/test_mount_operations.sh
 ```
 
 Si añadiste una licencia, inclúyela también, por ejemplo con `git add LICENSE`. Antes de confirmar, revisa exactamente qué se va a subir:
@@ -92,7 +92,7 @@ Desde la carpeta del proyecto:
 
 ```bash
 git status
-git add .gitignore README.md MANUAL_PUBLICACION.md montar_disco.sh mount_disco_gui.py
+git add .gitignore README.md MANUAL_PUBLICACION.md montar_disco.sh mount_disco_gui.py tests/test_mount_operations.sh
 git diff --cached --stat
 git commit -m "Describe brevemente el cambio"
 git push
