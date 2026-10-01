@@ -21,7 +21,7 @@
 set -euo pipefail
 
 PROG="$(basename "$0")"
-FSTAB="/etc/fstab"
+FSTAB="${FSTAB:-/etc/fstab}"
 
 log()  { printf '[%s] %s\n' "$PROG" "$*"; }
 err()  { printf '[%s] ERROR: %s\n' "$PROG" "$*" >&2; }
@@ -232,34 +232,49 @@ cmd_mount() {
         *) die "filesystem '$fstype' no soportado por este script" ;;
     esac
 
-    # ¿Ya está montado en algún sitio?
-    local current_mp
-    current_mp="$(findmnt -n -o TARGET "$dev" || true)"
-    if [[ -n "$current_mp" ]]; then
-        log "el disco ya está montado en: $current_mp"
-    else
-        mkdir -p "$mountpoint"
-        mount -U "$uuid" "$mountpoint"
-        log "montado correctamente en: $mountpoint"
+    local pass
+    local -a existing_targets=()
+
+    case "$fstype" in
+        ext2|ext3|ext4) pass=2 ;;
+        *)              pass=0 ;;
+    esac
+
+    # Rechazar si el disco ya está montado en algún sitio
+    load_mount_targets "$dev"
+    [[ "${#ACTIVE_TARGETS[@]}" -eq 0 ]] \
+        || die "ya montado en: ${ACTIVE_TARGETS[*]}; desmóntalo antes"
+
+    # Rechazar si el destino ya tiene algo montado
+    findmnt -M "$mountpoint" >/dev/null 2>&1 \
+        && die "ya hay algo montado en $mountpoint"
+
+    # Rechazar si fstab ya usa ese destino
+    awk -v t="$mountpoint" '!/^[[:space:]]*#/ && $2 == t { f = 1 } END { exit !f }' "$FSTAB" \
+        && die "fstab ya usa $mountpoint como destino"
+
+    # Rechazar si fstab ya tiene una entrada para ese UUID
+    mapfile -t existing_targets < <(fstab_targets_for_uuid "$uuid")
+    [[ "${#existing_targets[@]}" -eq 0 ]] \
+        || die "fstab ya tiene una entrada para UUID=$uuid; no se modificó nada"
+
+    mkdir -p -- "$mountpoint"
+    create_fstab_backup
+
+    # Asegurar salto de línea final antes de añadir
+    if [[ -s "$FSTAB" && -n "$(tail -c1 "$FSTAB")" ]]; then
+        printf '\n' >> "$FSTAB"
     fi
+    printf 'UUID=%s %s %s defaults,noatime,nofail 0 %s\n' \
+        "$uuid" "$mountpoint" "$fstype" "$pass" >> "$FSTAB"
 
-    # ¿Ya existe una entrada para este UUID en fstab?
-    if grep -qE "^[^#]*UUID=${uuid}[[:space:]]" "$FSTAB"; then
-        log "fstab: ya existe una entrada para UUID=$uuid, no se modifica"
-        return 0
+    systemctl daemon-reload || true
+    if ! mount -- "$mountpoint"; then
+        cp -a --remove-destination -- "$FSTAB_BACKUP" "$FSTAB"
+        systemctl daemon-reload || true
+        die "no se pudo montar $mountpoint; fstab restaurado desde $FSTAB_BACKUP"
     fi
-
-    local backup
-    backup="${FSTAB}.bak.$(date +%Y%m%d%H%M%S)"
-    cp -a "$FSTAB" "$backup"
-    log "backup de fstab creado en: $backup"
-
-    printf 'UUID=%s  %s  %s  defaults,noatime,nofail  0  2\n' "$uuid" "$mountpoint" "$fstype" >> "$FSTAB"
-    log "entrada añadida a fstab"
-
-    systemctl daemon-reload
-    mount -a
-    log "fstab recargado y verificado con 'mount -a'"
+    log "montado en $mountpoint y añadido a fstab (backup: $FSTAB_BACKUP)"
 }
 
 cmd_unmount() {
