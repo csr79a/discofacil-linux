@@ -17,7 +17,7 @@ La aplicación no formatea ni borra discos. Para montar, desmontar y editar `/et
 - Bash y herramientas de `util-linux`: `lsblk`, `findmnt`, `blkid` y `mount`.
 - Python 3.10 o posterior y PyQt6.
 - `sudo` para realizar el montaje persistente.
-- Para NTFS, `ntfs-3g`; para exFAT, un paquete que proporcione `mount.exfat`.
+- Para NTFS, `ntfs-3g`. Para exFAT basta con el soporte nativo del kernel (>= 5.7); si no está disponible, exfat-fuse o exfatprogs.
 
 La disponibilidad y el nombre de los paquetes pueden variar entre distribuciones. Los sistemas de archivos admitidos por el script son ext2/3/4, Btrfs, XFS, NTFS y exFAT, sujetos a que esté instalado el controlador correspondiente.
 
@@ -26,7 +26,7 @@ La disponibilidad y el nombre de los paquetes pueden variar entre distribuciones
 Clona el repositorio (reemplaza `USUARIO` por el nombre de la cuenta que lo publique):
 
 ```bash
-git clone https://github.com/USUARIO/discofacil-linux.git
+git clone https://github.com/csr79a/discofacil-linux.git
 cd discofacil-linux
 ```
 
