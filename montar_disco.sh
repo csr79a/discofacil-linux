@@ -196,7 +196,7 @@ cmd_list() {
             [[ "${#fstab_targets[@]}" -eq 1 ]] && fstab_target="${fstab_targets[0]}"
         fi
 
-        printf '%s|%s|%s|%s|%s|%s|%s|%s\n' \
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
             "$NAME" "$FSTYPE" "${LABEL:-}" "${UUID:-}" "$SIZE" \
             "${MOUNTPOINT:-}" "$fstab_target" "${#fstab_targets[@]}"
     done
@@ -253,7 +253,7 @@ cmd_mount() {
     cp -a "$FSTAB" "$backup"
     log "backup de fstab creado en: $backup"
 
-    printf 'UUID=%s  %s  %s  defaults,noatime  0  2\n' "$uuid" "$mountpoint" "$fstype" >> "$FSTAB"
+    printf 'UUID=%s  %s  %s  defaults,noatime,nofail  0  2\n' "$uuid" "$mountpoint" "$fstype" >> "$FSTAB"
     log "entrada añadida a fstab"
 
     systemctl daemon-reload

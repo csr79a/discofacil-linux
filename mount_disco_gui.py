@@ -255,7 +255,7 @@ class App(QWidget):
             return
         self.table.setRowCount(0)
         for line in p.stdout.splitlines():
-            parts = line.split("|", 7)
+            parts = line.split("\t", 7)
             if len(parts) != 8:
                 continue
             name, fstype, label, uuid, size, mountpoint, fstab_target, fstab_count = parts
