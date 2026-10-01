@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parent
 SCRIPT = ROOT / "montar_disco.sh"
 
 ANSI_RE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))")
-PROMPT_RE = re.compile(r"(?:password|contraseña|clave).*[:?]\s*$", re.I)
+PROMPT_RE = re.compile(r"\[discofacil-sudo\]\s*$")
 
 COLUMNS = ["Dispositivo", "Filesystem", "Etiqueta", "UUID", "Tamaño",
            "Montado en", "Inicio automático"]
@@ -255,7 +255,7 @@ class App(QWidget):
             return
         self.table.setRowCount(0)
         for line in p.stdout.splitlines():
-            parts = line.split("|", 7)
+            parts = line.split("\t", 7)
             if len(parts) != 8:
                 continue
             name, fstype, label, uuid, size, mountpoint, fstab_target, fstab_count = parts
@@ -388,7 +388,7 @@ class App(QWidget):
             return
         self.set_password_mode(False)
         self.write(f"\n=== {description} ===")
-        command = ["sudo", "-k", "bash", str(SCRIPT), *script_args]
+        command = ["sudo", "-k", "-p", "[discofacil-sudo] ", "bash", str(SCRIPT), *script_args]
         self.write("$ " + " ".join(command))
         self.runner = PtyRunner(command, self.write, self.finished, self.set_password_mode)
         try:
