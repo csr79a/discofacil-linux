@@ -184,6 +184,7 @@ cmd_list() {
     # Detectar UUIDs que aparecen en más de un dispositivo (Btrfs multidevice)
     local dup_uuids
     dup_uuids="$(lsblk -P -n -o UUID | sed -n 's/^UUID="\(..*\)"$/\1/p' | sort | uniq -d)"
+    local SEEN_UUIDS=""
 
     lsblk -P -o NAME,FSTYPE,LABEL,UUID,SIZE,MOUNTPOINT,TYPE |
     while IFS= read -r line; do
@@ -201,9 +202,17 @@ cmd_list() {
             *) continue ;;
         esac
 
-        # Excluir Btrfs multidevice (mismo UUID en varios dispositivos)
-        if [[ -n "${UUID:-}" ]] && grep -qxF "$UUID" <<< "$dup_uuids"; then
+        # Btrfs multidevice: mismo UUID en varios dispositivos, excluir todos.
+        if [[ "${FSTYPE:-}" == "btrfs" ]] && [[ -n "${UUID:-}" ]] && grep -qxF "$UUID" <<< "$dup_uuids"; then
             continue
+        fi
+
+        # Otros FS con UUID repetido (p. ej. disco + partición): mostrar solo uno.
+        if [[ -n "${UUID:-}" ]]; then
+            if grep -qxF "$UUID" <<< "${SEEN_UUIDS:-}"; then
+                continue
+            fi
+            SEEN_UUIDS="${SEEN_UUIDS:-}${UUID}"$'\n'
         fi
 
         local dev="/dev/${NAME}"
