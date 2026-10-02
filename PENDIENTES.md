@@ -32,3 +32,26 @@ Confirmado empíricamente: con dos dispositivos de bucle clonados con el mismo U
 Corregido en resolve_device: usa blkid -t UUID=... -o device, recoge todos los dispositivos y rechaza si hay más de uno. Verificado con dos imágenes clonadas: aborta con mensaje "hay 2 dispositivos con UUID=..." y no toca fstab.
 
 Consecuencia: Btrfs multidevice queda sin soporte (blkid -t devuelve varios dispositivos por diseño). Cambia el UUID o usa Btrfs de un solo dispositivo.
+
+## Resultados de la matriz (parcial)
+
+Probado en Debian 13 (kernel 7.1.13) y Fedora 44 (kernel 7.2.7). Ambos con ext4, NTFS, exFAT nativo, LUKS y Btrfs multidevice.
+
+Resultados:
+- ext4, NTFS y exFAT: mount/unmount/disable OK en las dos distros.
+- nofail y pass correctos en todas las entradas generadas.
+- fstab final limpio tras las pruebas, sin entradas residuales.
+- Prompt de sudo fijo [discofacil-sudo] verificado con LANG=de_DE.UTF-8 en Debian y Fedora.
+- SELinux Enforcing en Fedora no interfiere con el script.
+- Root Btrfs con subvolúmenes (Fedora) correctamente excluido de --list.
+
+Pendiente de probar: Ubuntu 24.04 y Arch Linux.
+
+## Fixes aplicados durante la matriz
+
+- fix-list-filtro: --list excluye LUKS, LVM, RAID, rom y Btrfs multidevice por FSTYPE y TYPE.
+- fix-list-uuid-dup: --list deduplica UUIDs. Btrfs multidevice se excluye entero; otros FS con UUID repetido (p. ej. disco + partición en Fedora) se muestran una sola vez.
+
+## Hallazgo nuevo: exFAT y sdd1 en Fedora
+
+En Fedora, mkfs.exfat sobre el disco entero expone el filesystem tanto en /dev/sdd como en /dev/sdd1, con el mismo UUID. El script resuelve a sdd1 al montar. En Debian monta desde /dev/sdd. Funciona igual en ambas, pero el SOURCE reportado por mount difiere. Documentado, no requiere acción.
