@@ -314,7 +314,16 @@ cmd_mount() {
 
     systemctl daemon-reload || true
     if ! mount -- "$mountpoint"; then
-        cp -a --remove-destination -- "$FSTAB_BACKUP" "$FSTAB"
+        # Restauración atómica: temp + mv sobre el mismo directorio.
+        # mv dentro del mismo filesystem es rename(2), atómico.
+        local rollback_tmp
+        rollback_tmp="$(mktemp "${FSTAB}.rollback.XXXXXXXX")" \
+            || die "no se pudo montar $mountpoint y no se pudo preparar la restauración; fstab intacto, backup en $FSTAB_BACKUP"
+        if ! cp -a --remove-destination -- "$FSTAB_BACKUP" "$rollback_tmp" \
+            || ! mv -f -- "$rollback_tmp" "$FSTAB"; then
+            rm -f -- "$rollback_tmp" 2>/dev/null || true
+            die "no se pudo montar $mountpoint y falló la restauración; fstab sin cambios, backup en $FSTAB_BACKUP"
+        fi
         systemctl daemon-reload || true
         die "no se pudo montar $mountpoint; fstab restaurado desde $FSTAB_BACKUP"
     fi
