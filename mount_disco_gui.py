@@ -71,6 +71,17 @@ class PtyRunner:
                 pass
             self.fd = None
 
+    def _drain(self):
+        while self.fd is not None:
+            try:
+                data = os.read(self.fd, 8192)
+            except OSError:
+                break
+            if not data:
+                break
+            self.on_output(data.decode("utf-8", "replace"))
+        self._close_fd()
+
     def _reap(self):
         if self.pid is None:
             return False
@@ -83,6 +94,7 @@ class PtyRunner:
             return False
         code = os.waitstatus_to_exitcode(status)
         self.pid = None
+        self._drain()
         self._finish(code)
         return True
 

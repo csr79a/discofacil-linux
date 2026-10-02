@@ -334,7 +334,7 @@ cmd_mount() {
     if [[ -s "$FSTAB" && -n "$(tail -c1 "$FSTAB")" ]]; then
         printf '\n' >> "$FSTAB"
     fi
-    printf 'UUID=%s %s %s defaults,noatime,nofail 0 %s\n' \
+    printf 'UUID=%s %s %s defaults,noatime,nofail,x-systemd.device-timeout=5s 0 %s\n' \
         "$uuid" "$mountpoint" "$fstype" "$pass" >> "$FSTAB"
 
     systemctl daemon-reload || true
