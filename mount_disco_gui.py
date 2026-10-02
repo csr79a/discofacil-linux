@@ -338,12 +338,33 @@ class App(QWidget):
         if not disk:
             return
         uuid = disk["uuid"]
+        rows = self.table.selectionModel().selectedRows()
+        if not rows:
+            return
+        row = rows[0].row()
+        device = self.table.item(row, 0).text()  # /dev/NAME
+        fstype = self.table.item(row, 1).text()
         mountpoint = self.mountpoint.text().strip()
         safe_path = bool(re.fullmatch(r"/mnt/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*", mountpoint))
         safe_path = safe_path and not any(part in (".", "..") for part in mountpoint.split("/"))
         if not safe_path:
             QMessageBox.warning(self, "Punto de montaje inválido",
                                  "Usa una ruta sencilla bajo /mnt/, sin espacios ni componentes . o ..")
+            return
+        answer = QMessageBox.question(
+            self,
+            "Montar y dejar permanente",
+            f"¿Montar y añadir a /etc/fstab?\n\n"
+            f"Dispositivo: {device}\n"
+            f"UUID: {uuid}\n"
+            f"Filesystem: {fstype}\n"
+            f"Destino: {mountpoint}\n\n"
+            "Se modificará /etc/fstab. Se creará una copia de seguridad.\n"
+            "Si el montaje falla, fstab se restaura automáticamente.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
             return
         self._start_operation(
             f"Montando UUID={uuid} en {mountpoint}",
