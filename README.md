@@ -79,7 +79,7 @@ Cubren las operaciones de desmontaje y reversión. El flujo de `--mount` (valida
 - `--mount` valida antes de escribir en `fstab`: rechaza si el disco ya está montado en otro sitio, si el destino ya tiene algo montado, o si `fstab` ya usa ese destino o ya tiene una entrada para ese UUID. La entrada se escribe con `nofail`, de modo que un disco ausente no bloquee el arranque.
 - Si el montaje falla después de escribir la entrada, `--mount` intenta restaurar `fstab` desde la copia de seguridad. La restauración todavía usa `cp` directo (no atómica).
 - Los puntos de montaje deben ser rutas canónicas sencillas bajo `/mnt`. Los desmontajes comparan el UUID, el destino persistente y los montajes activos; ante discrepancias o ambigüedades se niegan a continuar.
-- Probado en Debian 13, Fedora 44 y CachyOS (Arch-based) con ext4, NTFS, exFAT, LUKS y Btrfs multidevice. Cubre las tres familias principales: Debian-derivadas, Red Hat-derivadas y Arch-derivadas. Pendiente de probar en Ubuntu (probablemente equivalente a Debian). Tampoco está pensado para macOS o Windows, ni para distribuciones que no usen systemd.
+- Probado en Debian 13, Ubuntu 26.04, Fedora 44 y CachyOS (Arch-based), con ext4, NTFS, exFAT, LUKS y Btrfs multidevice. Cubre las cuatro familias principales (Debian, Ubuntu, Red Hat, Arch) en --list, --mount, --unmount y --disable. Tampoco está pensado para macOS o Windows, ni para distribuciones que no usen systemd.
 - Quedan limitaciones conocidas pendientes (UUID duplicados, interpretación de errores de `findmnt`, cancelación con `SIGKILL`); están listadas en `PENDIENTES.md`.
 
 ## Compatibilidad y aportes

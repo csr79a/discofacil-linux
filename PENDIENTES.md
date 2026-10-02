@@ -70,3 +70,31 @@ Hallazgos específicos de Arch/CachyOS (documentación de setup, no del script):
 - UFW activo por defecto; bloquea SSH hasta `sudo ufw allow 22/tcp`.
 - ntfsprogs es un paquete separado de ntfs-3g; necesario para formatear NTFS, no para montarlo.
 - exFAT expone el FS tanto en el disco como en sdd1 (igual que Fedora).
+
+## Resultados de la matriz — Ubuntu 26.04
+
+Kernel 7.0.0-38-generic. Raíz ext4.
+
+Resultados:
+- ext4, NTFS (fuseblk), exFAT (nativo): mount/unmount/disable OK.
+- nofail y pass correctos.
+- --list: solo discos soportados. Los 13 loops de snap correctamente excluidos.
+- fstab final limpio.
+
+Diferencias con otras distros:
+- exFAT monta desde /dev/sdd (como Debian). Fedora y CachyOS montan desde sdd1.
+- Sin firewall activo por defecto.
+
+## Cobertura final de la matriz
+
+Cuatro familias cubiertas: Debian 13, Ubuntu 26.04, Fedora 44, CachyOS (Arch-based).
+
+Todas las operaciones (--list, --mount, --unmount, --disable) probadas con:
+- ext4 (sistema de archivos base).
+- NTFS (ntfs-3g).
+- exFAT (nativo del kernel).
+- LUKS (contenedor cifrado).
+- Btrfs multidevice (RAID0 con dos discos).
+- Raíz Btrfs con subvolúmenes (Fedora y CachyOS).
+
+Sin fallos encontrados. Diferencia documentada entre distros: exFAT se resuelve a /dev/sdd en Debian y Ubuntu, a /dev/sdd1 en Fedora y CachyOS.
