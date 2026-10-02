@@ -21,10 +21,16 @@
 set -euo pipefail
 
 PROG="$(basename "$0")"
-# FSTAB no se puede inyectar desde el entorno general (evita que sudo -E o
-# env_keep puedan redirigir a root a otro archivo). Solo el nombre específico
-# del proyecto lo permite, y solo para las pruebas.
-FSTAB="${DISCOFACIL_FSTAB:-/etc/fstab}"
+# La ruta de fstab se puede sobrescribir solo para las pruebas, con un
+# interruptor explícito (DISCOFACIL_TEST=1) y una variable de nombre
+# específico del proyecto (DISCOFACIL_FSTAB). No es una barrera de
+# seguridad: sudo -E o un env_keep pueden conservar ambas variables.
+# Es solo una protección contra colisiones accidentales y un aviso de
+# que la ruta de producción es siempre /etc/fstab.
+FSTAB="/etc/fstab"
+if [[ "${DISCOFACIL_TEST:-}" == "1" && -n "${DISCOFACIL_FSTAB:-}" ]]; then
+    FSTAB="$DISCOFACIL_FSTAB"
+fi
 
 log()  { printf '[%s] %s\n' "$PROG" "$*"; }
 err()  { printf '[%s] ERROR: %s\n' "$PROG" "$*" >&2; }

@@ -94,7 +94,7 @@ run_case() {
     # Se lanza en primer plano (exec) y un ayudante envía la señal a $$; así el
     # SIGINT no queda ignorado por ser un job asíncrono.
     set +e
-    PATH="$SHIM_DIR:$PATH" DISCOFACIL_FSTAB="$FSTAB_FAKE" \
+    PATH="$SHIM_DIR:$PATH" DISCOFACIL_TEST=1 DISCOFACIL_FSTAB="$FSTAB_FAKE" \
         bash -c '
             ( sleep 2; kill -"$4" $$ ) &
             exec bash "$1" --mount "$2" "$3"

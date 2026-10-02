@@ -92,7 +92,7 @@ cp -a /etc/fstab "$FSTAB_ORIG"
 cp -a "$FSTAB_ORIG" "$FSTAB_FAKE"
 
 set +e
-OUT="$(DISCOFACIL_FSTAB="$FSTAB_FAKE" bash "$SCRIPT_UNDER_TEST" --list 2>&1)"
+OUT="$(DISCOFACIL_TEST=1 DISCOFACIL_FSTAB="$FSTAB_FAKE" bash "$SCRIPT_UNDER_TEST" --list 2>&1)"
 RC=$?
 set -e
 printf '%s\n' "$OUT"

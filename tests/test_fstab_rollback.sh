@@ -83,7 +83,7 @@ chmod +x "$SHIM_DIR/mount"
 mkdir -p "$MNT"
 
 set +e
-OUT="$(PATH="$SHIM_DIR:$PATH" DISCOFACIL_FSTAB="$FSTAB_FAKE" bash "$SCRIPT_UNDER_TEST" --mount "$UUID" "$MNT" 2>&1)"
+OUT="$(PATH="$SHIM_DIR:$PATH" DISCOFACIL_TEST=1 DISCOFACIL_FSTAB="$FSTAB_FAKE" bash "$SCRIPT_UNDER_TEST" --mount "$UUID" "$MNT" 2>&1)"
 RC=$?
 set -e
 printf '%s\n' "$OUT"

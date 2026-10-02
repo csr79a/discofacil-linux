@@ -26,9 +26,10 @@ EOF
 }
 
 run_mocked() (
-    # El script toma FSTAB de DISCOFACIL_FSTAB al cargarse, así que debe
-    # definirse ANTES del source.
-    DISCOFACIL_FSTAB="$TEST_FSTAB"
+    # El script toma FSTAB de DISCOFACIL_FSTAB al cargarse, así que ambas
+    # variables deben estar definidas ANTES del source.
+    export DISCOFACIL_TEST=1
+    export DISCOFACIL_FSTAB="$TEST_FSTAB"
     source "$SCRIPT"
     require_root() { :; }
     blkid() {
