@@ -174,10 +174,10 @@ create_fstab_backup() {
 }
 
 prune_fstab_backups() {
-    # Conserva solo los 5 backups más recientes (/etc/fstab.discofacil-bak.XXXXXXXX).
+    # Conserva solo los 3 backups más recientes (/etc/fstab.discofacil-bak.XXXXXXXX).
     # Solo toca ficheros regulares con el patrón exacto de mktemp (8 caracteres)
     # y nunca el backup de la operación en curso. Es best-effort: no falla.
-    local keep=5 f
+    local keep=3 f
     local -a files=()
     mapfile -t files < <(ls -1t -- "${FSTAB}".discofacil-bak.???????? 2>/dev/null || true)
     (( ${#files[@]} > keep )) || return 0
