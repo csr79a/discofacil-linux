@@ -16,7 +16,9 @@ new_case() {
     : > "$CALL_LOG"
     MOCK_TARGETS="$MOUNTPOINT"
     MOCK_UMOUNT_FAIL=0
-    export TEST_FSTAB CALL_LOG MOCK_TARGETS MOCK_UMOUNT_FAIL
+    MOCK_MOUNTINFO_TARGET=""
+    MOCK_FSTYPE="ext4"
+    export TEST_FSTAB CALL_LOG MOCK_TARGETS MOCK_UMOUNT_FAIL MOCK_MOUNTINFO_TARGET MOCK_FSTYPE
     cat > "$TEST_FSTAB" <<EOF
 # Keep this comment
 UUID=$UUID  $MOUNTPOINT  ext4  defaults,noatime  0  2
@@ -33,8 +35,9 @@ run_mocked() (
     source "$SCRIPT"
     require_root() { :; }
     blkid() {
-        # resolve_device usa `blkid -t UUID=... -o device`; el mock debe cubrir -t.
+        # resolve_device usa `blkid -t UUID=... -o device`; cmd_mount usa -s TYPE.
         case " $* " in
+            *" -s TYPE "*) printf '%s\n' "${MOCK_FSTYPE:-ext4}" ;;
             *" -t "*|*" -U "*) printf '/dev/mock-disk\n' ;;
             *) return 2 ;;
         esac
@@ -67,10 +70,39 @@ run_mocked() (
         printf ' %s' "$@" >> "$CALL_LOG"
         printf '\n' >> "$CALL_LOG"
     }
+    mkdir() {
+        printf 'mkdir' >> "$CALL_LOG"
+        printf ' %s' "$@" >> "$CALL_LOG"
+        printf '\n' >> "$CALL_LOG"
+    }
+    mount() {
+        printf 'mount' >> "$CALL_LOG"
+        printf ' %s' "$@" >> "$CALL_LOG"
+        printf '\n' >> "$CALL_LOG"
+    }
+    mount.ntfs-3g() { :; }
+    awk() {
+        # Redirige SOLO la lectura de /proc/self/mountinfo a un fichero controlado;
+        # cualquier otra llamada delega en el awk real. Propaga el código de salida.
+        local args=("$@")
+        local n=${#args[@]}
+        if [[ "$n" -ge 1 && "${args[$((n-1))]}" == "/proc/self/mountinfo" ]]; then
+            local mi rc=0
+            mi="$(mktemp)"
+            printf '1 0 0:1 / / rw - rootfs rootfs rw\n' > "$mi"
+            [[ -n "${MOCK_MOUNTINFO_TARGET:-}" ]] \
+                && printf '1 0 0:2 / %s rw - ext4 /dev/mock-disk rw\n' "$MOCK_MOUNTINFO_TARGET" >> "$mi"
+            command awk "${args[@]:0:$((n-1))}" "$mi" || rc=$?
+            rm -f "$mi"
+            return "$rc"
+        fi
+        command awk "$@"
+    }
 
     case "$TEST_OPERATION" in
         unmount) cmd_unmount "$UUID" "$TEST_EXPECTED" ;;
         disable) cmd_disable "$UUID" "$TEST_EXPECTED" ;;
+        mount)   cmd_mount "$UUID" "$TEST_EXPECTED" ;;
         *) return 2 ;;
     esac
 )
@@ -94,6 +126,10 @@ assert_backup_matches_original() {
     local backup
     backup="$(find "$CASE_DIR" -maxdepth 1 -name 'fstab.bak.*' -print -quit)"
     [[ -n "$backup" ]] && cmp -s "$CASE_DIR/original" "$backup"
+}
+
+assert_no_backup() {
+    ! compgen -G "$TEST_FSTAB.bak.*" >/dev/null
 }
 
 pass() {
@@ -193,6 +229,146 @@ if run_mocked >/dev/null 2>&1; then exit 1; fi
 assert_unchanged
 assert_no_calls
 pass "ruta con traversal aborta sin efectos"
+
+# --- --mount: rechazos que no deben tocar fstab ni crear backup ---
+
+# (a) El disco ya está montado en otro sitio.
+new_case
+MOCK_TARGETS="/mnt/ya-montado"
+TEST_OPERATION=mount TEST_EXPECTED="$MOUNTPOINT"
+export MOCK_TARGETS TEST_OPERATION TEST_EXPECTED
+if run_mocked >/dev/null 2>&1; then exit 1; fi
+assert_unchanged
+assert_no_calls
+assert_no_backup
+pass "--mount aborta si el disco ya está montado (ya montado en)"
+
+# (b) fstab ya usa el destino, con otro UUID.
+new_case
+MOCK_TARGETS=""
+printf 'UUID=otro %s ext4 defaults 0 2\n' "$MOUNTPOINT" > "$TEST_FSTAB"
+cp "$TEST_FSTAB" "$CASE_DIR/original"
+TEST_OPERATION=mount TEST_EXPECTED="$MOUNTPOINT"
+export MOCK_TARGETS TEST_OPERATION TEST_EXPECTED
+if run_mocked >/dev/null 2>&1; then exit 1; fi
+assert_unchanged
+assert_no_calls
+assert_no_backup
+pass "--mount aborta si fstab ya usa el destino (fstab ya usa)"
+
+# (c) fstab ya tiene una entrada para el UUID, con otro destino.
+new_case
+MOCK_TARGETS=""
+printf 'UUID=%s /mnt/otro-destino ext4 defaults 0 2\n' "$UUID" > "$TEST_FSTAB"
+cp "$TEST_FSTAB" "$CASE_DIR/original"
+TEST_OPERATION=mount TEST_EXPECTED="$MOUNTPOINT"
+export MOCK_TARGETS TEST_OPERATION TEST_EXPECTED
+if run_mocked >/dev/null 2>&1; then exit 1; fi
+assert_unchanged
+assert_no_calls
+assert_no_backup
+pass "--mount aborta si fstab ya tiene una entrada para el UUID"
+
+# (d) Destino de traversal.
+new_case
+TEST_OPERATION=mount TEST_EXPECTED="/mnt/../tmp"
+export TEST_OPERATION TEST_EXPECTED
+if run_mocked >/dev/null 2>&1; then exit 1; fi
+assert_unchanged
+assert_no_calls
+assert_no_backup
+pass "--mount aborta con destino de traversal"
+
+# (f) El destino ya está montado según /proc/self/mountinfo.
+new_case
+MOCK_TARGETS=""
+MOCK_MOUNTINFO_TARGET="$MOUNTPOINT"
+TEST_OPERATION=mount TEST_EXPECTED="$MOUNTPOINT"
+export MOCK_TARGETS MOCK_MOUNTINFO_TARGET TEST_OPERATION TEST_EXPECTED
+if run_mocked >/dev/null 2>&1; then exit 1; fi
+assert_unchanged
+assert_no_calls
+assert_no_backup
+pass "--mount aborta si el destino ya está montado (ya hay algo montado en)"
+
+# --- --mount: camino de éxito (mocks; no se monta nada real) ---
+
+# (2a) ext4
+new_case
+MOCK_TARGETS=""; MOCK_MOUNTINFO_TARGET=""; MOCK_FSTYPE="ext4"
+export MOCK_TARGETS MOCK_MOUNTINFO_TARGET MOCK_FSTYPE
+unset SUDO_UID SUDO_GID 2>/dev/null || true
+printf '# limpio\n' > "$TEST_FSTAB"; cp "$TEST_FSTAB" "$CASE_DIR/original"
+TEST_OPERATION=mount TEST_EXPECTED="$MOUNTPOINT"
+export TEST_OPERATION TEST_EXPECTED
+run_mocked >/dev/null
+grep -Fx "UUID=$UUID $MOUNTPOINT ext4 defaults,noatime,nofail,x-systemd.device-timeout=5s 0 2" "$TEST_FSTAB" >/dev/null
+assert_backup_matches_original
+grep -Fx "mount -- $MOUNTPOINT" "$CALL_LOG" >/dev/null
+grep -Fx 'systemctl daemon-reload' "$CALL_LOG" >/dev/null
+pass "mount ext4: línea y backup correctos"
+
+# (2b) xfs
+new_case
+MOCK_TARGETS=""; MOCK_MOUNTINFO_TARGET=""; MOCK_FSTYPE="xfs"
+export MOCK_TARGETS MOCK_MOUNTINFO_TARGET MOCK_FSTYPE
+printf '# limpio\n' > "$TEST_FSTAB"; cp "$TEST_FSTAB" "$CASE_DIR/original"
+TEST_OPERATION=mount TEST_EXPECTED="$MOUNTPOINT"
+export TEST_OPERATION TEST_EXPECTED
+run_mocked >/dev/null
+grep -Fx "UUID=$UUID $MOUNTPOINT xfs defaults,noatime,nofail,x-systemd.device-timeout=5s 0 0" "$TEST_FSTAB" >/dev/null
+assert_backup_matches_original
+grep -Fx "mount -- $MOUNTPOINT" "$CALL_LOG" >/dev/null
+grep -Fx 'systemctl daemon-reload' "$CALL_LOG" >/dev/null
+pass "mount xfs: línea y backup correctos"
+
+# (2c) ntfs con SUDO_UID/GID
+new_case
+MOCK_TARGETS=""; MOCK_MOUNTINFO_TARGET=""; MOCK_FSTYPE="ntfs"
+export MOCK_TARGETS MOCK_MOUNTINFO_TARGET MOCK_FSTYPE
+export SUDO_UID=1000 SUDO_GID=1000
+printf '# limpio\n' > "$TEST_FSTAB"; cp "$TEST_FSTAB" "$CASE_DIR/original"
+TEST_OPERATION=mount TEST_EXPECTED="$MOUNTPOINT"
+export TEST_OPERATION TEST_EXPECTED
+run_mocked >/dev/null
+grep -Fx "UUID=$UUID $MOUNTPOINT ntfs-3g defaults,noatime,nofail,x-systemd.device-timeout=5s,uid=1000,gid=1000 0 0" "$TEST_FSTAB" >/dev/null
+assert_backup_matches_original
+grep -Fx "mount -- $MOUNTPOINT" "$CALL_LOG" >/dev/null
+grep -Fx 'systemctl daemon-reload' "$CALL_LOG" >/dev/null
+pass "mount ntfs con SUDO_UID: añade uid/gid"
+
+# (2d) ntfs sin SUDO_UID
+new_case
+MOCK_TARGETS=""; MOCK_MOUNTINFO_TARGET=""; MOCK_FSTYPE="ntfs"
+export MOCK_TARGETS MOCK_MOUNTINFO_TARGET MOCK_FSTYPE
+unset SUDO_UID SUDO_GID 2>/dev/null || true
+printf '# limpio\n' > "$TEST_FSTAB"; cp "$TEST_FSTAB" "$CASE_DIR/original"
+TEST_OPERATION=mount TEST_EXPECTED="$MOUNTPOINT"
+export TEST_OPERATION TEST_EXPECTED
+run_mocked >/dev/null
+grep -Fx "UUID=$UUID $MOUNTPOINT ntfs-3g defaults,noatime,nofail,x-systemd.device-timeout=5s 0 0" "$TEST_FSTAB" >/dev/null
+! grep -F 'uid=' "$TEST_FSTAB"
+! grep -F 'gid=' "$TEST_FSTAB"
+assert_backup_matches_original
+grep -Fx "mount -- $MOUNTPOINT" "$CALL_LOG" >/dev/null
+grep -Fx 'systemctl daemon-reload' "$CALL_LOG" >/dev/null
+pass "mount ntfs sin SUDO_UID: no añade uid/gid"
+
+# (2e) fstab sin salto de línea final
+new_case
+MOCK_TARGETS=""; MOCK_MOUNTINFO_TARGET=""; MOCK_FSTYPE="ext4"
+export MOCK_TARGETS MOCK_MOUNTINFO_TARGET MOCK_FSTYPE
+unset SUDO_UID SUDO_GID 2>/dev/null || true
+printf '# sin salto final' > "$TEST_FSTAB"; cp "$TEST_FSTAB" "$CASE_DIR/original"
+TEST_OPERATION=mount TEST_EXPECTED="$MOUNTPOINT"
+export TEST_OPERATION TEST_EXPECTED
+run_mocked >/dev/null
+grep -Fx '# sin salto final' "$TEST_FSTAB" >/dev/null
+grep -Fx "UUID=$UUID $MOUNTPOINT ext4 defaults,noatime,nofail,x-systemd.device-timeout=5s 0 2" "$TEST_FSTAB" >/dev/null
+assert_backup_matches_original
+grep -Fx "mount -- $MOUNTPOINT" "$CALL_LOG" >/dev/null
+grep -Fx 'systemctl daemon-reload' "$CALL_LOG" >/dev/null
+pass "mount con fstab sin salto final: entrada en su propia línea"
 
 # La compuerta de pruebas: sin DISCOFACIL_TEST=1 se ignora DISCOFACIL_FSTAB.
 got="$(env -u DISCOFACIL_TEST DISCOFACIL_FSTAB=/tmp/no-debe-usarse \
