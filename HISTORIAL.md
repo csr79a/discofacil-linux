@@ -91,7 +91,7 @@ Diferencias con otras distros:
 
 ## Cobertura final de la matriz
 
-Cuatro familias cubiertas: Debian 13, Ubuntu 26.04, Fedora 44, CachyOS (Arch-based).
+Tres familias cubiertas: Debian/Ubuntu (Debian 13, Ubuntu 26.04), Red Hat (Fedora 44) y Arch (CachyOS).
 
 Todas las operaciones (--list, --mount, --unmount, --disable) probadas con:
 - ext4 (sistema de archivos base).
