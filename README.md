@@ -96,4 +96,4 @@ Los informes de errores y pruebas en distintas distribuciones son bienvenidos. I
 
 ## Licencia
 
-Este repositorio todavía no incluye una licencia. Antes de publicarlo, el autor debe elegir una licencia si desea permitir explícitamente que otras personas reutilicen o modifiquen el código.
+Este proyecto se distribuye bajo la licencia GNU GPL v3.0. Consulta el archivo LICENSE.
