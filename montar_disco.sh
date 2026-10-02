@@ -50,6 +50,7 @@ on_interrupt() {
 
 trap 'on_interrupt SIGINT' INT
 trap 'on_interrupt SIGTERM' TERM
+trap 'on_interrupt SIGHUP' HUP
 
 require_root() {
     [[ "$EUID" -eq 0 ]] || die "esta operación requiere sudo/root"
@@ -345,8 +346,13 @@ cmd_mount() {
     if [[ -s "$FSTAB" && -n "$(tail -c1 "$FSTAB")" ]]; then
         printf '\n' >> "$FSTAB"
     fi
-    printf 'UUID=%s %s %s defaults,noatime,nofail,x-systemd.device-timeout=5s 0 %s\n' \
-        "$uuid" "$mountpoint" "$fstype" "$pass" >> "$FSTAB"
+    local opts="defaults,noatime,nofail,x-systemd.device-timeout=5s"
+    if [[ "$fstype" == "ntfs-3g" || "$fstype" == "exfat" ]] \
+        && [[ "${SUDO_UID:-0}" =~ ^[0-9]+$ && "${SUDO_UID:-0}" -ne 0 ]]; then
+        opts+=",uid=${SUDO_UID},gid=${SUDO_GID:-$SUDO_UID}"
+    fi
+    printf 'UUID=%s %s %s %s 0 %s\n' \
+        "$uuid" "$mountpoint" "$fstype" "$opts" "$pass" >> "$FSTAB"
 
     systemctl daemon-reload || true
     if ! mount -- "$mountpoint"; then
