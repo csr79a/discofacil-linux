@@ -9,7 +9,7 @@ Una pequeña herramienta con interfaz gráfica para identificar particiones de d
 - `mount_disco_gui.py`: interfaz gráfica en PyQt6.
 - `montar_disco.sh`: lista, monta y desmonta particiones.
 
-La aplicación no formatea ni borra discos. Para montar, desmontar y editar `/etc/fstab`, solicita privilegios mediante `sudo`. Antes de añadir o quitar una entrada, el script crea una copia de seguridad de `fstab`.
+La aplicación no formatea ni borra discos. Para montar, desmontar y editar `/etc/fstab`, solicita privilegios mediante `sudo`. Cada cambio en `/etc/fstab` crea una copia (`/etc/fstab.discofacil-bak.XXXXXXXX`); se conservan las 5 más recientes y las anteriores se borran tras una operación correcta. «Desmontar ahora» (`--unmount`) no crea copias.
 
 ## Requisitos
 
@@ -83,7 +83,7 @@ sudo bash tests/test_btrfs_subvol.sh     # --list excluye el Btrfs raíz con /.s
 ## Precauciones y limitaciones conocidas
 
 - Comprueba dos veces el dispositivo y su UUID antes de confirmar. Un montaje puede ocultar temporalmente los archivos que ya existan en el directorio de destino.
-- El script modifica `/etc/fstab`. Cada cambio crea una copia de seguridad; revisa el resultado y conserva una copia propia.
+- El script modifica `/etc/fstab`. Cada cambio en `/etc/fstab` crea una copia (`/etc/fstab.discofacil-bak.XXXXXXXX`); se conservan las 5 más recientes y las anteriores se borran tras una operación correcta. Las copias antiguas con otros nombres (por ejemplo `/etc/fstab.bak.*`) no se tocan nunca; el script solo borra las suyas (`/etc/fstab.discofacil-bak.*`). «Desmontar ahora» no crea copias. Revisa el resultado y conserva una copia propia.
 - `--mount` valida antes de escribir en `fstab`: rechaza si el disco ya está montado en otro sitio, si el destino ya tiene algo montado, o si `fstab` ya usa ese destino o ya tiene una entrada para ese UUID. La entrada se escribe con `nofail`, de modo que un disco ausente no bloquee el arranque.
 - Si el montaje falla después de escribir la entrada, `--mount` intenta restaurar `fstab` desde la copia de seguridad. La restauración es atómica (archivo temporal + `mv`), y una interrupción con `SIGINT`, `SIGTERM` o `SIGHUP` también restaura `fstab`.
 - Los puntos de montaje deben ser rutas canónicas sencillas bajo `/mnt`. Los desmontajes comparan el UUID, el destino persistente y los montajes activos; ante discrepancias o ambigüedades se niegan a continuar.

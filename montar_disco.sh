@@ -161,13 +161,32 @@ create_fstab_backup() {
     [[ -f "$FSTAB" && ! -L "$FSTAB" && -r "$FSTAB" && -w "$FSTAB" ]] \
         || die "fstab no es un archivo regular legible y modificable: $FSTAB"
 
-    backup="$(mktemp "${FSTAB}.bak.XXXXXXXX")" || die "no se pudo crear un backup de fstab"
+    backup="$(mktemp "${FSTAB}.discofacil-bak.XXXXXXXX")" || die "no se pudo crear un backup de fstab"
     if ! cp -a --remove-destination -- "$FSTAB" "$backup"; then
         rm -f -- "$backup"
         die "no se pudo crear el backup de fstab"
     fi
+    # cp -a conserva la fecha de modificación de fstab; el prune ordena por fecha,
+    # así que la copia debe llevar la fecha de su creación.
+    touch -- "$backup"
     FSTAB_BACKUP="$backup"
     log "backup de fstab creado en: $FSTAB_BACKUP"
+}
+
+prune_fstab_backups() {
+    # Conserva solo los 5 backups más recientes (/etc/fstab.discofacil-bak.XXXXXXXX).
+    # Solo toca ficheros regulares con el patrón exacto de mktemp (8 caracteres)
+    # y nunca el backup de la operación en curso. Es best-effort: no falla.
+    local keep=5 f
+    local -a files=()
+    mapfile -t files < <(ls -1t -- "${FSTAB}".discofacil-bak.???????? 2>/dev/null || true)
+    (( ${#files[@]} > keep )) || return 0
+    for f in "${files[@]:keep}"; do
+        if [[ "$f" != "$FSTAB_BACKUP" && -f "$f" && ! -L "$f" ]]; then
+            rm -f -- "$f" || true
+        fi
+    done
+    return 0
 }
 
 remove_fstab_entry() {
@@ -397,6 +416,7 @@ cmd_mount() {
         die "no se pudo montar $mountpoint; fstab restaurado desde $FSTAB_BACKUP"
     fi
     FSTAB_DIRTY=0
+    prune_fstab_backups
     log "montado en $mountpoint y añadido a fstab (backup: $FSTAB_BACKUP)"
 }
 
@@ -466,6 +486,7 @@ cmd_disable() {
 
     remove_fstab_entry "$uuid" "$expected_mountpoint"
     FSTAB_DIRTY=0
+    prune_fstab_backups
     if ! systemctl daemon-reload; then
         log "AVISO: fstab se actualizó, pero systemd no pudo recargarse"
     fi

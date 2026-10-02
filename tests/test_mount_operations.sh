@@ -122,14 +122,35 @@ assert_no_calls() {
     [[ ! -s "$CALL_LOG" ]]
 }
 
+real_backup_path() {
+    local backup
+    while IFS= read -r backup; do
+        # Ignora los backups falsos del test (fstab.discofacil-bak.aaaaaaaN) y
+        # busca uno cuyo contenido coincida con el original.
+        if [[ "$(basename "$backup")" != fstab.discofacil-bak.aaaaaaa* ]] \
+            && cmp -s "$CASE_DIR/original" "$backup"; then
+            printf '%s\n' "$backup"
+            return 0
+        fi
+    done < <(find "$CASE_DIR" -maxdepth 1 -name 'fstab.discofacil-bak.*' -print)
+    return 1
+}
+
 assert_backup_matches_original() {
     local backup
-    backup="$(find "$CASE_DIR" -maxdepth 1 -name 'fstab.bak.*' -print -quit)"
-    [[ -n "$backup" ]] && cmp -s "$CASE_DIR/original" "$backup"
+    backup="$(real_backup_path)" && [[ -n "$backup" ]]
+}
+
+backup_count() {
+    local n=0 f
+    for f in "$TEST_FSTAB".discofacil-bak.????????; do
+        [[ -e "$f" ]] && n=$((n + 1))
+    done
+    printf '%d' "$n"
 }
 
 assert_no_backup() {
-    ! compgen -G "$TEST_FSTAB.bak.*" >/dev/null
+    ! compgen -G "$TEST_FSTAB.discofacil-bak.*" >/dev/null
 }
 
 pass() {
@@ -209,6 +230,64 @@ assert_backup_matches_original
 grep -Fx "umount -- $MOUNTPOINT" "$CALL_LOG" >/dev/null
 grep -Fx 'systemctl daemon-reload' "$CALL_LOG" >/dev/null
 pass "éxito elimina solo la entrada seleccionada y conserva backup"
+
+# El backup debe quedar con la fecha de creación: cp -a copiaría la del fstab,
+# y el prune ordena por fecha de modificación.
+new_case
+touch -d "2020-01-01" "$TEST_FSTAB"
+cp -p "$TEST_FSTAB" "$CASE_DIR/original"
+TEST_OPERATION=disable TEST_EXPECTED="$MOUNTPOINT"
+export TEST_OPERATION TEST_EXPECTED
+run_mocked >/dev/null
+real_backup="$(real_backup_path)"
+[[ -n "$real_backup" ]]
+(( $(date +%s) - $(stat -c %Y "$real_backup") < 120 ))
+pass "el backup conserva la fecha de creación, no la del fstab original"
+
+# (a) En éxito, prune conserva los 5 backups más recientes y borra los antiguos.
+# Los backups con otros nombres (ajenos) no se tocan nunca, ni siquiera
+# fstab.bak.aaaaaaaa, que coincide con el patrón antiguo de 8 caracteres.
+new_case
+for i in 1 2 3 4 5 6 7; do
+    touch -d "2026-01-0$i" "$CASE_DIR/fstab.discofacil-bak.aaaaaaa$i"
+done
+touch -d "2026-01-01" "$CASE_DIR/fstab.discofacil-bak.manual"
+for foreign in fstab.bak.20260101 fstab.bak.original fstab.bak.aaaaaaaa; do
+    touch -d "2019-01-01" "$CASE_DIR/$foreign"
+done
+TEST_OPERATION=disable TEST_EXPECTED="$MOUNTPOINT"
+export TEST_OPERATION TEST_EXPECTED
+run_mocked >/dev/null
+[[ "$(backup_count)" -eq 5 ]]
+[[ ! -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa1" ]]
+[[ ! -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa2" ]]
+[[ ! -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa3" ]]
+[[ -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa4" ]]
+[[ -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa5" ]]
+[[ -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa6" ]]
+[[ -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa7" ]]
+[[ -e "$CASE_DIR/fstab.discofacil-bak.manual" ]]
+[[ -e "$CASE_DIR/fstab.bak.20260101" ]]
+[[ -e "$CASE_DIR/fstab.bak.original" ]]
+[[ -e "$CASE_DIR/fstab.bak.aaaaaaaa" ]]
+assert_backup_matches_original
+pass "prune conserva 5 backups, borra los antiguos y respeta ajenos"
+
+# (b) Si la operación falla, prune NO se ejecuta y no borra ningún backup.
+new_case
+for i in 1 2 3 4 5 6 7; do
+    touch -d "2026-01-0$i" "$CASE_DIR/fstab.discofacil-bak.aaaaaaa$i"
+done
+touch -d "2026-01-01" "$CASE_DIR/fstab.discofacil-bak.manual"
+TEST_OPERATION=disable TEST_EXPECTED="$MOUNTPOINT" MOCK_UMOUNT_FAIL=1
+export TEST_OPERATION TEST_EXPECTED MOCK_UMOUNT_FAIL
+if run_mocked >/dev/null 2>&1; then exit 1; fi
+for i in 1 2 3 4 5 6 7; do
+    [[ -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa$i" ]]
+done
+[[ -e "$CASE_DIR/fstab.discofacil-bak.manual" ]]
+[[ "$(backup_count)" -eq 8 ]]
+pass "en fallo no se ejecuta prune y se conservan todos los backups"
 
 # Si ya estaba desmontado, se puede quitar la entrada persistente sin umount.
 new_case
