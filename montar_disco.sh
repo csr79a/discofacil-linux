@@ -5,7 +5,10 @@
 # Uso:
 #   montar_disco.sh --list
 #       Lista discos candidatos (excluye el disco raíz, /boot y swap)
-#       en formato: NAME|FSTYPE|LABEL|UUID|SIZE|MOUNTPOINT
+#       en formato: NAME, FSTYPE, LABEL, UUID, SIZE, MOUNTPOINT, FSTAB_TARGET, FSTAB_COUNT
+#       separados por tabulador.
+#       (campos separados por tabulador; FSTAB_TARGET es el destino en fstab
+#       si hay exactamente una entrada, y FSTAB_COUNT el número de entradas)
 #
 #   montar_disco.sh --mount <UUID> <punto_de_montaje>
 #       Monta el disco identificado por UUID en el punto indicado
