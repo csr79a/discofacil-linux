@@ -27,6 +27,30 @@ log()  { printf '[%s] %s\n' "$PROG" "$*"; }
 err()  { printf '[%s] ERROR: %s\n' "$PROG" "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
+# Estado del trap de interrupción: 0 = fstab limpio, 1 = modificación en curso.
+FSTAB_DIRTY=0
+FSTAB_BACKUP=""
+
+on_interrupt() {
+    local sig="$1"
+    if [[ "${FSTAB_DIRTY:-0}" -eq 1 && -n "${FSTAB_BACKUP:-}" && -f "$FSTAB_BACKUP" ]]; then
+        local tmp
+        tmp="$(mktemp "${FSTAB}.sig.XXXXXXXX" 2>/dev/null)" || true
+        if [[ -n "$tmp" ]] \
+            && cp -a --remove-destination -- "$FSTAB_BACKUP" "$tmp" 2>/dev/null \
+            && mv -f -- "$tmp" "$FSTAB" 2>/dev/null; then
+            printf '\n[%s] %s recibido; fstab restaurado desde %s\n' "$PROG" "$sig" "$FSTAB_BACKUP" >&2
+        else
+            rm -f -- "$tmp" 2>/dev/null || true
+            printf '\n[%s] %s recibido; no se pudo restaurar fstab, backup en %s\n' "$PROG" "$sig" "$FSTAB_BACKUP" >&2
+        fi
+    fi
+    exit 130
+}
+
+trap 'on_interrupt SIGINT' INT
+trap 'on_interrupt SIGTERM' TERM
+
 require_root() {
     [[ "$EUID" -eq 0 ]] || die "esta operación requiere sudo/root"
 }
@@ -304,6 +328,7 @@ cmd_mount() {
 
     mkdir -p -- "$mountpoint"
     create_fstab_backup
+    FSTAB_DIRTY=1
 
     # Asegurar salto de línea final antes de añadir
     if [[ -s "$FSTAB" && -n "$(tail -c1 "$FSTAB")" ]]; then
@@ -327,6 +352,7 @@ cmd_mount() {
         systemctl daemon-reload || true
         die "no se pudo montar $mountpoint; fstab restaurado desde $FSTAB_BACKUP"
     fi
+    FSTAB_DIRTY=0
     log "montado en $mountpoint y añadido a fstab (backup: $FSTAB_BACKUP)"
 }
 
@@ -379,6 +405,7 @@ cmd_disable() {
 
     # El backup se crea antes del desmontaje y de cualquier cambio en fstab.
     create_fstab_backup
+    FSTAB_DIRTY=1
 
     if [[ "${#ACTIVE_TARGETS[@]}" -eq 1 ]]; then
         # Sin opciones de fuerza: si está ocupado, umount falla y fstab queda intacta.
@@ -394,6 +421,7 @@ cmd_disable() {
     fi
 
     remove_fstab_entry "$uuid" "$expected_mountpoint"
+    FSTAB_DIRTY=0
     if ! systemctl daemon-reload; then
         log "AVISO: fstab se actualizó, pero systemd no pudo recargarse"
     fi
