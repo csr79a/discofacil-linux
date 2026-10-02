@@ -181,13 +181,30 @@ cmd_list() {
     local root_src
     root_src="$(findmnt -n -o SOURCE /)"
 
+    # Detectar UUIDs que aparecen en más de un dispositivo (Btrfs multidevice)
+    local dup_uuids
+    dup_uuids="$(lsblk -P -n -o UUID | sed -n 's/^UUID="\(..*\)"$/\1/p' | sort | uniq -d)"
+
     lsblk -P -o NAME,FSTYPE,LABEL,UUID,SIZE,MOUNTPOINT,TYPE |
     while IFS= read -r line; do
         eval "$line"   # crea NAME= FSTYPE= LABEL= UUID= SIZE= MOUNTPOINT= TYPE=
 
-        # Solo particiones/discos con sistema de archivos real
-        [[ -n "${FSTYPE:-}" ]] || continue
-        [[ "$FSTYPE" != "swap" ]] || continue
+        # Solo discos y particiones (no mappers LUKS/LVM/RAID, no rom)
+        case "${TYPE:-}" in
+            disk|part) : ;;
+            *) continue ;;
+        esac
+
+        # Solo sistemas de archivos soportados
+        case "${FSTYPE:-}" in
+            ext2|ext3|ext4|btrfs|xfs|ntfs|exfat) : ;;
+            *) continue ;;
+        esac
+
+        # Excluir Btrfs multidevice (mismo UUID en varios dispositivos)
+        if [[ -n "${UUID:-}" ]] && grep -qxF "$UUID" <<< "$dup_uuids"; then
+            continue
+        fi
 
         local dev="/dev/${NAME}"
 
