@@ -113,12 +113,15 @@ Ubuntu envuelve el prompt con "[sudo: " delante y "] Password:" detrás. La rege
 
 Corregido: la regex ahora es \[discofacil-sudo\], que busca el marcador en cualquier posición. Cubre Debian, Fedora, CachyOS y Ubuntu.
 
-## Pendientes de riesgo
+## R5. Cancelación con SIGKILL en la GUI (verificado: no reproducible)
 
-### R5. Cancelación con SIGKILL en la GUI
+Hipótesis original: la GUI cancela con os.killpg(self.pid, SIGKILL). Con sudo y use_pty activo, el comando subyacente podía quedar en otro grupo de procesos y sobrevivir al killpg.
 
-La GUI cancela operaciones con os.killpg(self.pid, signal.SIGKILL). Con sudo configurado con use_pty (opción por defecto en algunas versiones), el proceso que realmente ejecuta el comando puede quedar en otro grupo de procesos, así que el SIGKILL mata a sudo pero no al comando subyacente. El resultado sería un montar_disco.sh corriendo como root después de que el usuario haya cancelado.
+Verificado empíricamente en dos distros con use_pty activo:
 
-SIGKILL no se puede capturar con trap, así que el trap añadido a montar_disco.sh (SIGINT/SIGTERM) no cubre este caso.
+- Fedora 44 (sudo 1.9.17p2, use_pty implícito): el killpg mata sudo, el sudo anidado y el comando real. La muerte se propaga por el PTY.
+- Debian 13 (sudo 1.9.16p2, use_pty explícito en /etc/sudoers): mismo resultado.
 
-Mitigación posible: sustituir el SIGKILL inmediato de cancel() por un SIGTERM al grupo, esperar unos segundos, y solo entonces recurrir a SIGKILL. O usar pkill -P para matar también los hijos. Requiere probar en distintas versiones de sudo (con y sin use_pty) y confirmar en qué grupo queda el comando real. Hipótesis sin verificar.
+En ambos casos, tras el killpg del grupo de sudo no queda ningún proceso vivo. El comando real (sleep) no sobrevive.
+
+Conclusión: R5 no reproducible en las configuraciones probadas. La GUI mata correctamente toda la cadena. No requiere cambios.
