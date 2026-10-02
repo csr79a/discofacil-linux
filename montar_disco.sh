@@ -96,12 +96,18 @@ load_mount_targets() {
     local output status target
     ACTIVE_TARGETS=()
 
+    # Comprobación de salud: findmnt sin filtro nunca está vacío.
+    # Si esto falla, es error real y abortamos.
+    if ! findmnt --raw --noheadings --output SOURCE >/dev/null 2>&1; then
+        die "findmnt no responde; no se puede determinar el estado de montaje"
+    fi
+
+    # Con findmnt funcionando, un rc=1 en la consulta filtrada solo puede ser
+    # "sin coincidencias". Cualquier otro código es error.
     if output="$(findmnt --raw --noheadings --source "$device" --output TARGET)"; then
         :
     else
         status=$?
-        # findmnt devuelve 1 cuando no hay coincidencias; otros errores no
-        # deben interpretarse como un disco desmontado.
         [[ "$status" -eq 1 ]] || die "findmnt falló al consultar $device"
         output=""
     fi
@@ -281,9 +287,11 @@ cmd_mount() {
     [[ "${#ACTIVE_TARGETS[@]}" -eq 0 ]] \
         || die "ya montado en: ${ACTIVE_TARGETS[*]}; desmóntalo antes"
 
-    # Rechazar si el destino ya tiene algo montado
-    findmnt -M "$mountpoint" >/dev/null 2>&1 \
-        && die "ya hay algo montado en $mountpoint"
+    # Rechazar si el destino ya tiene algo montado (vía /proc/self/mountinfo,
+    # sin la ambigüedad de findmnt -M).
+    if awk -v mp="$mountpoint" '$5 == mp { found=1 } END { exit !found }' /proc/self/mountinfo; then
+        die "ya hay algo montado en $mountpoint"
+    fi
 
     # Rechazar si fstab ya usa ese destino
     awk -v t="$mountpoint" '!/^[[:space:]]*#/ && $2 == t { f = 1 } END { exit !f }' "$FSTAB" \
