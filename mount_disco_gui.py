@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parent
 SCRIPT = ROOT / "montar_disco.sh"
 
 ANSI_RE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))")
-PROMPT_RE = re.compile(r"\[discofacil-sudo\]\s*$")
+PROMPT_RE = re.compile(r"\[discofacil-sudo\]")
 
 COLUMNS = ["Dispositivo", "Filesystem", "Etiqueta", "UUID", "Tamaño",
            "Montado en", "Inicio automático"]
