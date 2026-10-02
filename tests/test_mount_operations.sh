@@ -26,22 +26,34 @@ EOF
 }
 
 run_mocked() (
+    # El script toma FSTAB de DISCOFACIL_FSTAB al cargarse, así que debe
+    # definirse ANTES del source.
+    DISCOFACIL_FSTAB="$TEST_FSTAB"
     source "$SCRIPT"
-    FSTAB="$TEST_FSTAB"
     require_root() { :; }
     blkid() {
-        if [[ "${1:-}" == "-U" ]]; then
-            printf '/dev/mock-disk\n'
-        else
-            return 2
-        fi
+        # resolve_device usa `blkid -t UUID=... -o device`; el mock debe cubrir -t.
+        case " $* " in
+            *" -t "*|*" -U "*) printf '/dev/mock-disk\n' ;;
+            *) return 2 ;;
+        esac
     }
     findmnt() {
-        if [[ -n "${MOCK_TARGETS:-}" ]]; then
-            printf '%s\n' "$MOCK_TARGETS"
-            return 0
-        fi
-        return 1
+        # Sin --source (p. ej. la comprobación de salud de load_mount_targets)
+        # siempre hay montajes; con --source, devolver MOCK_TARGETS o rc=1.
+        case " $* " in
+            *" --source "*)
+                if [[ -n "${MOCK_TARGETS:-}" ]]; then
+                    printf '%s\n' "$MOCK_TARGETS"
+                    return 0
+                fi
+                return 1
+                ;;
+            *)
+                printf '/\n'
+                return 0
+                ;;
+        esac
     }
     umount() {
         printf 'umount' >> "$CALL_LOG"

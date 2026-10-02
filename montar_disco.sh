@@ -21,7 +21,10 @@
 set -euo pipefail
 
 PROG="$(basename "$0")"
-FSTAB="${FSTAB:-/etc/fstab}"
+# FSTAB no se puede inyectar desde el entorno general (evita que sudo -E o
+# env_keep puedan redirigir a root a otro archivo). Solo el nombre específico
+# del proyecto lo permite, y solo para las pruebas.
+FSTAB="${DISCOFACIL_FSTAB:-/etc/fstab}"
 
 log()  { printf '[%s] %s\n' "$PROG" "$*"; }
 err()  { printf '[%s] ERROR: %s\n' "$PROG" "$*" >&2; }
@@ -344,15 +347,30 @@ cmd_mount() {
 
     # Asegurar salto de línea final antes de añadir
     if [[ -s "$FSTAB" && -n "$(tail -c1 "$FSTAB")" ]]; then
-        printf '\n' >> "$FSTAB"
+        if ! printf '\n' >> "$FSTAB"; then
+            FSTAB_DIRTY=0
+            die "no se pudo escribir en fstab; fstab intacto, backup en $FSTAB_BACKUP"
+        fi
     fi
     local opts="defaults,noatime,nofail,x-systemd.device-timeout=5s"
     if [[ "$fstype" == "ntfs-3g" || "$fstype" == "exfat" ]] \
         && [[ "${SUDO_UID:-0}" =~ ^[0-9]+$ && "${SUDO_UID:-0}" -ne 0 ]]; then
         opts+=",uid=${SUDO_UID},gid=${SUDO_GID:-$SUDO_UID}"
     fi
-    printf 'UUID=%s %s %s %s 0 %s\n' \
-        "$uuid" "$mountpoint" "$fstype" "$opts" "$pass" >> "$FSTAB"
+    if ! printf 'UUID=%s %s %s %s 0 %s\n' \
+        "$uuid" "$mountpoint" "$fstype" "$opts" "$pass" >> "$FSTAB"; then
+        local rollback_tmp
+        rollback_tmp="$(mktemp "${FSTAB}.rollback.XXXXXXXX" 2>/dev/null)" || true
+        if [[ -n "$rollback_tmp" ]] \
+            && cp -a --remove-destination -- "$FSTAB_BACKUP" "$rollback_tmp" 2>/dev/null \
+            && mv -f -- "$rollback_tmp" "$FSTAB" 2>/dev/null; then
+            FSTAB_DIRTY=0
+            die "no se pudo escribir en fstab; fstab restaurado desde $FSTAB_BACKUP"
+        else
+            rm -f -- "$rollback_tmp" 2>/dev/null || true
+            die "no se pudo escribir en fstab y falló la restauración; backup en $FSTAB_BACKUP"
+        fi
+    fi
 
     systemctl daemon-reload || true
     if ! mount -- "$mountpoint"; then
