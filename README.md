@@ -2,7 +2,7 @@
 
 Una pequeña herramienta con interfaz gráfica para identificar particiones de datos, montarlas bajo `/mnt` y administrar su montaje persistente en `/etc/fstab`.
 
-> **Estado: experimental.** Se ha probado en un solo equipo. El objetivo es admitir distribuciones Linux comunes como Debian, Ubuntu, Arch Linux y Fedora, pero todavía no se ha verificado en todas ellas. Lee las limitaciones y precauciones antes de usarla.
+> **Estado: experimental.** Probada en Debian 13, Ubuntu 26.04, Fedora 44 y CachyOS. Lee las limitaciones y precauciones antes de usarla.
 
 ## Qué incluye
 
@@ -70,17 +70,25 @@ Las pruebas del repositorio usan un `fstab` temporal y simulaciones de `findmnt`
 bash tests/test_mount_operations.sh
 ```
 
-Cubren las operaciones de desmontaje y reversión. El flujo de `--mount` (validación previa, escritura de la entrada y rollback) se verificó manualmente con un `fstab` temporal dentro de un namespace de montaje (`unshare -m`), sin tocar el `/etc/fstab` real; todavía no está incorporado como prueba automatizada.
+Cubren las operaciones de desmontaje, reversión y la compuerta de `DISCOFACIL_FSTAB` (que solo se respeta con `DISCOFACIL_TEST=1`). Otras tres pruebas requieren `sudo`: usan dispositivos de bucle y `unshare -m`, no tocan el `/etc/fstab` real, y salen con código 77 si no pueden ejecutarse.
+
+```bash
+sudo bash tests/test_fstab_rollback.sh   # rollback de --mount si el montaje falla
+sudo bash tests/test_signal_trap.sh      # trap de SIGTERM, SIGINT y SIGHUP
+sudo bash tests/test_btrfs_subvol.sh     # --list excluye el Btrfs raíz con /.snapshots
+```
+
+`DISCOFACIL_TEST` y `DISCOFACIL_FSTAB` son solo para el entorno de pruebas; no los uses en producción.
 
 ## Precauciones y limitaciones conocidas
 
 - Comprueba dos veces el dispositivo y su UUID antes de confirmar. Un montaje puede ocultar temporalmente los archivos que ya existan en el directorio de destino.
 - El script modifica `/etc/fstab`. Cada cambio crea una copia de seguridad; revisa el resultado y conserva una copia propia.
 - `--mount` valida antes de escribir en `fstab`: rechaza si el disco ya está montado en otro sitio, si el destino ya tiene algo montado, o si `fstab` ya usa ese destino o ya tiene una entrada para ese UUID. La entrada se escribe con `nofail`, de modo que un disco ausente no bloquee el arranque.
-- Si el montaje falla después de escribir la entrada, `--mount` intenta restaurar `fstab` desde la copia de seguridad. La restauración todavía usa `cp` directo (no atómica).
+- Si el montaje falla después de escribir la entrada, `--mount` intenta restaurar `fstab` desde la copia de seguridad. La restauración es atómica (archivo temporal + `mv`), y una interrupción con `SIGINT`, `SIGTERM` o `SIGHUP` también restaura `fstab`.
 - Los puntos de montaje deben ser rutas canónicas sencillas bajo `/mnt`. Los desmontajes comparan el UUID, el destino persistente y los montajes activos; ante discrepancias o ambigüedades se niegan a continuar.
-- Probado en Debian 13, Ubuntu 26.04, Fedora 44 y CachyOS (Arch-based), con ext4, NTFS, exFAT, LUKS y Btrfs multidevice. Cubre las tres familias principales (Debian/Ubuntu, Red Hat, Arch) en --list, --mount, --unmount y --disable. Tampoco está pensado para macOS o Windows, ni para distribuciones que no usen systemd.
-- Quedan limitaciones conocidas pendientes (UUID duplicados, interpretación de errores de `findmnt`, cancelación con `SIGKILL`); están listadas en `HISTORIAL.md`.
+- Probado en Debian 13, Ubuntu 26.04, Fedora 44 y CachyOS (Arch-based), con ext4, NTFS, exFAT y Btrfs de un solo dispositivo; LUKS y Btrfs multidevice no están soportados y se excluyen de la lista. Cubre las tres familias principales (Debian/Ubuntu, Red Hat, Arch) en --list, --mount, --unmount y --disable. No está pensado para macOS o Windows, ni para distribuciones que no usen systemd.
+- Limitaciones conocidas: no se admiten Btrfs multidevice ni UUID duplicados (`--mount` aborta si hay más de un dispositivo con el mismo UUID). En NTFS y exFAT se añaden `uid`/`gid` del usuario que ejecutó `sudo` (`SUDO_UID`); si esa variable no existe, el montaje queda accesible solo para root. En ext4, Btrfs y XFS el punto de montaje queda como `root:root`: ajusta propietario o permisos a mano si lo necesitas. El historial de cambios y las decisiones aplazadas están en `HISTORIAL.md`.
 
 ## Compatibilidad y aportes
 
