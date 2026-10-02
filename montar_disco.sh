@@ -334,6 +334,12 @@ cmd_disable() {
         fi
     fi
 
+    # Seguridad R7: confirmar que el destino ya no está montado antes de tocar fstab.
+    # /proc/self/mountinfo no tiene la ambigüedad de findmnt.
+    if awk -v mp="$expected_mountpoint" '$5 == mp { found=1 } END { exit !found }' /proc/self/mountinfo; then
+        die "el destino $expected_mountpoint sigue montado; no se modifica fstab"
+    fi
+
     remove_fstab_entry "$uuid" "$expected_mountpoint"
     if ! systemctl daemon-reload; then
         log "AVISO: fstab se actualizó, pero systemd no pudo recargarse"

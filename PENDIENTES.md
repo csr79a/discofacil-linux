@@ -12,3 +12,16 @@ Mejoras menores:
 - El rollback de cmd_mount usa cp -a directo sobre fstab; podría ser atómico (temp + mv) como remove_fstab_entry.
 - R3: cmd_mount y fstab_targets_for_uuid usan criterios distintos para reconocer el UUID en fstab (grep vs awk).
 - R5: la cancelación con SIGKILL puede dejar el comando corriendo como root en algunas versiones de sudo con use_pty. No hay trap.
+
+### R7. Estado de montaje basado en códigos de salida de findmnt
+
+Confirmado empíricamente con un shim de findmnt que devuelve 1 al consultar con --source.
+
+findmnt devuelve 1 tanto para "sin coincidencias" como para cualquier error (según su man). El código interpreta 1 como "sin montajes" y findmnt -M en cmd_mount se comporta igual.
+
+Impacto por operación:
+- --unmount: exige exactamente un punto activo; con una lista vacía falsa aborta sin tocar nada.
+- --mount: la comprobación de destino ocupado puede dar un falso "libre". Mitigado por el rollback y por la comprobación independiente de destinos en fstab.
+- --disable: con una lista vacía falsa se saltaba umount y borraba la entrada de fstab con el disco aún montado. Mitigado con la comprobación en /proc/self/mountinfo antes de remove_fstab_entry (verificado con shim: Caso A aborta con fstab intacto).
+
+Solución completa prevista: consultar findmnt sin filtro (la lista nunca está vacía) y emparejar por ruta canónica, abortando ante cualquier error; comprobar el destino con /proc/self/mountinfo en cmd_mount. Requiere probar NTFS, exFAT-FUSE, LUKS y Btrfs (subvolúmenes y multidispositivo).
