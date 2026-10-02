@@ -251,9 +251,20 @@ cmd_list() {
         [[ "$dev" != "$root_src" ]] || continue
 
         # Excluye lo que ya está montado en /, /boot, /home, etc.
+        # MOUNTPOINT singular puede ser engañoso con Btrfs y subvolúmenes:
+        # lsblk solo rellena uno de los puntos, y puede ser cualquiera.
         case "${MOUNTPOINT:-}" in
-            "/"|/boot*|/home|/var*|/root|/srv) continue ;;
+            "/"|/boot*|/home|/var*|/root|/srv|/.snapshots*) continue ;;
         esac
+
+        # Comprobación adicional con findmnt: si el dispositivo tiene CUALQUIER
+        # punto de montaje en rutas de sistema, excluirlo. Cubre Btrfs con
+        # subvolúmenes montados fuera de la lista habitual.
+        if [[ -n "${UUID:-}" ]] \
+            && findmnt -n -o TARGET --source "/dev/$NAME" 2>/dev/null \
+                | grep -qE '^(/|/boot|/home|/var|/root|/srv|/\.snapshots)(/.*)?$'; then
+            continue
+        fi
 
         local -a fstab_targets=()
         local fstab_target=""
