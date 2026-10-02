@@ -5,7 +5,6 @@ Publicado en main: C1, C2, E1, E4, R1, R2, R4 (y de paso E2 y E3, cubiertos por 
 Pendientes de probar en Debian, Ubuntu, Arch y Fedora:
 
 - R7: findmnt y load_mount_targets tratan un error de consulta como "no montado". Requiere verificar cómo se comportan findmnt con NTFS, exFAT-FUSE, LUKS y Btrfs multidispositivo.
-- R6: blkid -U devuelve solo el primero si hay UUID duplicados. Requiere validar blkid -t en las cuatro distribuciones. Btrfs multidispositivo queda sin soporte por ahora.
 
 Mejoras menores:
 
@@ -25,3 +24,11 @@ Impacto por operación:
 - --disable: con una lista vacía falsa se saltaba umount y borraba la entrada de fstab con el disco aún montado. Mitigado con la comprobación en /proc/self/mountinfo antes de remove_fstab_entry (verificado con shim: Caso A aborta con fstab intacto).
 
 Solución completa prevista: consultar findmnt sin filtro (la lista nunca está vacía) y emparejar por ruta canónica, abortando ante cualquier error; comprobar el destino con /proc/self/mountinfo en cmd_mount. Requiere probar NTFS, exFAT-FUSE, LUKS y Btrfs (subvolúmenes y multidispositivo).
+
+### R6. UUID duplicados (corregido)
+
+Confirmado empíricamente: con dos dispositivos de bucle clonados con el mismo UUID, blkid -U devolvía solo uno (de forma no determinista entre ejecuciones) y --mount montaba ese sin avisar.
+
+Corregido en resolve_device: usa blkid -t UUID=... -o device, recoge todos los dispositivos y rechaza si hay más de uno. Verificado con dos imágenes clonadas: aborta con mensaje "hay 2 dispositivos con UUID=..." y no toca fstab.
+
+Consecuencia: Btrfs multidevice queda sin soporte (blkid -t devuelve varios dispositivos por diseño). Cambia el UUID o usa Btrfs de un solo dispositivo.

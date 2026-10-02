@@ -56,10 +56,20 @@ validate_mountpoint() {
 
 resolve_device() {
     local uuid="$1"
-    local device
-    device="$(blkid -U "$uuid")" || die "no se encontró ningún disco con UUID $uuid"
-    [[ -n "$device" ]] || die "no se encontró ningún disco con UUID $uuid"
-    printf '%s\n' "$device"
+    local -a devices=()
+    local line
+
+    # blkid -U devuelve solo el primero si hay UUID duplicados.
+    # blkid -t los devuelve todos; rechazamos si hay más de uno.
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && devices+=("$line")
+    done < <(blkid -t "UUID=$uuid" -o device 2>/dev/null || true)
+
+    case "${#devices[@]}" in
+        0) die "no se encontró ningún dispositivo con UUID $uuid" ;;
+        1) printf '%s\n' "${devices[0]}" ;;
+        *) die "hay ${#devices[@]} dispositivos con UUID=$uuid: ${devices[*]}; resuelve la ambigüedad (cambia el UUID de uno) antes de continuar" ;;
+    esac
 }
 
 fstab_targets_for_uuid() {
