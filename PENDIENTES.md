@@ -55,3 +55,18 @@ Pendiente de probar: Ubuntu 24.04 y Arch Linux.
 ## Hallazgo nuevo: exFAT y sdd1 en Fedora
 
 En Fedora, mkfs.exfat sobre el disco entero expone el filesystem tanto en /dev/sdd como en /dev/sdd1, con el mismo UUID. El script resuelve a sdd1 al montar. En Debian monta desde /dev/sdd. Funciona igual en ambas, pero el SOURCE reportado por mount difiere. Documentado, no requiere acción.
+
+## Resultados de la matriz — CachyOS (Arch-based)
+
+Probado en CachyOS x86_64 con kernel 7.2.8-2-cachyos, sobre Btrfs con subvolúmenes.
+
+Resultados:
+- ext4, NTFS (fuseblk), exFAT (nativo): mount/unmount/disable OK.
+- nofail y pass correctos en todas las entradas.
+- --list: solo discos soportados. Raíz Btrfs con subvolúmenes (/dev/sda2[/@]) correctamente excluida. Confirma el caso que el informe marcaba como potencialmente problemático.
+- fstab final limpio.
+
+Hallazgos específicos de Arch/CachyOS (documentación de setup, no del script):
+- UFW activo por defecto; bloquea SSH hasta `sudo ufw allow 22/tcp`.
+- ntfsprogs es un paquete separado de ntfs-3g; necesario para formatear NTFS, no para montarlo.
+- exFAT expone el FS tanto en el disco como en sdd1 (igual que Fedora).
