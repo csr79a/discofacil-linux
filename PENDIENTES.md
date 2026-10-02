@@ -6,11 +6,11 @@ Pendientes de probar en Debian, Ubuntu, Arch y Fedora:
 
 - R7: findmnt y load_mount_targets tratan un error de consulta como "no montado". Requiere verificar cómo se comportan findmnt con NTFS, exFAT-FUSE, LUKS y Btrfs multidispositivo.
 
-Mejoras menores:
+## Mejoras menores (resueltas)
 
-- El rollback de cmd_mount usa cp -a directo sobre fstab; podría ser atómico (temp + mv) como remove_fstab_entry.
-- R3: cmd_mount y fstab_targets_for_uuid usan criterios distintos para reconocer el UUID en fstab (grep vs awk).
-- R5: la cancelación con SIGKILL puede dejar el comando corriendo como root en algunas versiones de sudo con use_pty. No hay trap.
+- Rollback atómico en cmd_mount: temp + mv en vez de cp directo. Verificado con shim de mount que falla: fstab idéntico a la copia prístina, sin residuales.
+- Trap SIGINT/SIGTERM: si llega una señal con modificación de fstab en curso, restaura desde el backup y sale con 130. Verificado con shim de mount lento: fstab intacto tras SIGTERM y SIGINT.
+- R3 (criterios de UUID inconsistentes): ya estaba resuelto por el parche de C1. El grep original de cmd_mount fue eliminado y todas las consultas a fstab pasan por fstab_targets_for_uuid.
 
 ### R7. Estado de montaje basado en códigos de salida de findmnt (resuelto)
 
