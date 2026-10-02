@@ -125,3 +125,17 @@ Verificado empíricamente en dos distros con use_pty activo:
 En ambos casos, tras el killpg del grupo de sudo no queda ningún proceso vivo. El comando real (sleep) no sobrevive.
 
 Conclusión: R5 no reproducible en las configuraciones probadas. La GUI mata correctamente toda la cadena. No requiere cambios.
+
+## Bug encontrado en verificación: --list ofrecía el disco del sistema con Btrfs y subvolúmenes
+
+Reproducido en Fedora 44 y verificado también en CachyOS. Afecta al equipo de desarrollo principal, que tiene /.snapshots real.
+
+Causa: cmd_list usaba MOUNTPOINT (singular) de lsblk, que solo rellena un punto de montaje por partición. Con Btrfs y subvolúmenes, ese punto puede ser /.snapshots (o cualquier otro fuera de la lista de exclusión). El disco del sistema aparecía como candidato.
+
+Afecta a cualquier sistema con Btrfs y subvolúmenes montados en rutas no listadas (Fedora, CachyOS, openSUSE).
+
+Corregido en cmd_list con dos capas:
+1. Ampliado el case de exclusión con /.snapshots*.
+2. Comprobación adicional con findmnt --source /dev/$NAME: si el dispositivo tiene cualquier punto de montaje en rutas de sistema, se excluye. Cubre subvolúmenes montados en cualquier ruta no prevista.
+
+Verificado: findmnt --source /dev/sda3 devuelve las entradas con subvolumen entre corchetes (/dev/sda3[/root], /dev/sda3[/home]) y el filtro las detecta. Con el subvolumen raíz montado en /.snapshots, --list ya no ofrece sda3. Probado en Fedora 44 (util-linux del sistema) y en CachyOS (util-linux 2.42.4).
