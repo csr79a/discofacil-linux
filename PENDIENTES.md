@@ -112,3 +112,13 @@ En Ubuntu, sudo con -p "[discofacil-sudo] " produce:
 Ubuntu envuelve el prompt con "[sudo: " delante y "] Password:" detrás. La regex original exigía el marcador al final de la línea, así que no coincidía en Ubuntu y la GUI no activaba el modo password.
 
 Corregido: la regex ahora es \[discofacil-sudo\], que busca el marcador en cualquier posición. Cubre Debian, Fedora, CachyOS y Ubuntu.
+
+## Pendientes de riesgo
+
+### R5. Cancelación con SIGKILL en la GUI
+
+La GUI cancela operaciones con os.killpg(self.pid, signal.SIGKILL). Con sudo configurado con use_pty (opción por defecto en algunas versiones), el proceso que realmente ejecuta el comando puede quedar en otro grupo de procesos, así que el SIGKILL mata a sudo pero no al comando subyacente. El resultado sería un montar_disco.sh corriendo como root después de que el usuario haya cancelado.
+
+SIGKILL no se puede capturar con trap, así que el trap añadido a montar_disco.sh (SIGINT/SIGTERM) no cubre este caso.
+
+Mitigación posible: sustituir el SIGKILL inmediato de cancel() por un SIGTERM al grupo, esperar unos segundos, y solo entonces recurrir a SIGKILL. O usar pkill -P para matar también los hijos. Requiere probar en distintas versiones de sudo (con y sin use_pty) y confirmar en qué grupo queda el comando real. Hipótesis sin verificar.
