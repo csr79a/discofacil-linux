@@ -52,7 +52,7 @@ cleanup() {
     set +e
     umount "$MNT" 2>/dev/null || true
     [[ -n "$DEV" ]] && losetup -d "$DEV" 2>/dev/null || true
-    rm -f "$IMG" "$FSTAB_FAKE" "$FSTAB_ORIG" "$FSTAB_FAKE".bak.* "$FSTAB_FAKE".sig.* "$FSTAB_FAKE".rollback.* 2>/dev/null || true
+    rm -f "$IMG" "$FSTAB_FAKE" "$FSTAB_ORIG" "$FSTAB_FAKE".discofacil-bak.* "$FSTAB_FAKE".sig.* "$FSTAB_FAKE".rollback.* 2>/dev/null || true
     rm -rf "$SHIM_DIR" 2>/dev/null || true
     rmdir "$MNT" 2>/dev/null || true
 }

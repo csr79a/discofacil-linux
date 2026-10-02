@@ -57,7 +57,7 @@ cleanup() {
     umount "$SYS" 2>/dev/null || true
     umount "$TOP" 2>/dev/null || true
     [[ -n "$DEV" ]] && losetup -d "$DEV" 2>/dev/null || true
-    rm -f "$IMG" "$FSTAB_FAKE" "$FSTAB_ORIG" "$FSTAB_FAKE".bak.* 2>/dev/null || true
+    rm -f "$IMG" "$FSTAB_FAKE" "$FSTAB_ORIG" "$FSTAB_FAKE".discofacil-bak.* 2>/dev/null || true
     rm -rf "$SHIM_DIR" 2>/dev/null || true
     rmdir "$SYS" "$TOP" 2>/dev/null || true
     # Sólo borrar /.snapshots si lo creamos nosotros (puede existir de antes).
