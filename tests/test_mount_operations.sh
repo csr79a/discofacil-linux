@@ -244,34 +244,33 @@ real_backup="$(real_backup_path)"
 (( $(date +%s) - $(stat -c %Y "$real_backup") < 120 ))
 pass "el backup conserva la fecha de creación, no la del fstab original"
 
-# (a) En éxito, prune conserva los 5 backups más recientes y borra los antiguos.
+# (a) En éxito, prune conserva los 3 backups más recientes y borra los antiguos.
 # Los backups con otros nombres (ajenos) no se tocan nunca, ni siquiera
 # fstab.bak.aaaaaaaa, que coincide con el patrón antiguo de 8 caracteres.
 new_case
 for i in 1 2 3 4 5 6 7; do
     touch -d "2026-01-0$i" "$CASE_DIR/fstab.discofacil-bak.aaaaaaa$i"
 done
-touch -d "2026-01-01" "$CASE_DIR/fstab.discofacil-bak.manual"
-for foreign in fstab.bak.20260101 fstab.bak.original fstab.bak.aaaaaaaa; do
+for foreign in fstab.bak.manual fstab.bak.20260101 fstab.bak.original fstab.bak.aaaaaaaa; do
     touch -d "2019-01-01" "$CASE_DIR/$foreign"
 done
 TEST_OPERATION=disable TEST_EXPECTED="$MOUNTPOINT"
 export TEST_OPERATION TEST_EXPECTED
 run_mocked >/dev/null
-[[ "$(backup_count)" -eq 5 ]]
+[[ "$(backup_count)" -eq 3 ]]
 [[ ! -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa1" ]]
 [[ ! -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa2" ]]
 [[ ! -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa3" ]]
-[[ -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa4" ]]
-[[ -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa5" ]]
+[[ ! -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa4" ]]
+[[ ! -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa5" ]]
 [[ -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa6" ]]
 [[ -e "$CASE_DIR/fstab.discofacil-bak.aaaaaaa7" ]]
-[[ -e "$CASE_DIR/fstab.discofacil-bak.manual" ]]
+[[ -e "$CASE_DIR/fstab.bak.manual" ]]
 [[ -e "$CASE_DIR/fstab.bak.20260101" ]]
 [[ -e "$CASE_DIR/fstab.bak.original" ]]
 [[ -e "$CASE_DIR/fstab.bak.aaaaaaaa" ]]
 assert_backup_matches_original
-pass "prune conserva 5 backups, borra los antiguos y respeta ajenos"
+pass "prune conserva 3 backups, borra los antiguos y respeta ajenos"
 
 # (b) Si la operación falla, prune NO se ejecuta y no borra ningún backup.
 new_case
