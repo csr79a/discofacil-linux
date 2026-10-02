@@ -98,3 +98,13 @@ Todas las operaciones (--list, --mount, --unmount, --disable) probadas con:
 - Raíz Btrfs con subvolúmenes (Fedora y CachyOS).
 
 Sin fallos encontrados. Diferencia documentada entre distros: exFAT se resuelve a /dev/sdd en Debian y Ubuntu, a /dev/sdd1 en Fedora y CachyOS.
+
+## Hallazgo de la matriz Ubuntu: prompt sudo envuelto
+
+En Ubuntu, sudo con -p "[discofacil-sudo] " produce:
+
+[sudo: [discofacil-sudo] ] Password:
+
+Ubuntu envuelve el prompt con "[sudo: " delante y "] Password:" detrás. La regex original exigía el marcador al final de la línea, así que no coincidía en Ubuntu y la GUI no activaba el modo password.
+
+Corregido: la regex ahora es \[discofacil-sudo\], que busca el marcador en cualquier posición. Cubre Debian, Fedora, CachyOS y Ubuntu.
