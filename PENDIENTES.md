@@ -12,18 +12,22 @@ Mejoras menores:
 - R3: cmd_mount y fstab_targets_for_uuid usan criterios distintos para reconocer el UUID en fstab (grep vs awk).
 - R5: la cancelación con SIGKILL puede dejar el comando corriendo como root en algunas versiones de sudo con use_pty. No hay trap.
 
-### R7. Estado de montaje basado en códigos de salida de findmnt
+### R7. Estado de montaje basado en códigos de salida de findmnt (resuelto)
 
-Confirmado empíricamente con un shim de findmnt que devuelve 1 al consultar con --source.
+findmnt devuelve 1 tanto para "sin coincidencias" como para cualquier error (según su man). El código interpretaba 1 como "sin montajes".
 
-findmnt devuelve 1 tanto para "sin coincidencias" como para cualquier error (según su man). El código interpreta 1 como "sin montajes" y findmnt -M en cmd_mount se comporta igual.
+Corregido en tres capas:
 
-Impacto por operación:
-- --unmount: exige exactamente un punto activo; con una lista vacía falsa aborta sin tocar nada.
-- --mount: la comprobación de destino ocupado puede dar un falso "libre". Mitigado por el rollback y por la comprobación independiente de destinos en fstab.
-- --disable: con una lista vacía falsa se saltaba umount y borraba la entrada de fstab con el disco aún montado. Mitigado con la comprobación en /proc/self/mountinfo antes de remove_fstab_entry (verificado con shim: Caso A aborta con fstab intacto).
+1. load_mount_targets añade una comprobación de salud previa: si findmnt no responde (sin filtro, que nunca está vacío), aborta con "findmnt no responde".
+2. Con findmnt funcionando, un rc=1 en la consulta por --source es fiable: significa "sin coincidencias".
+3. Las comprobaciones de destino ocupado en cmd_mount y cmd_disable usan /proc/self/mountinfo, sin la ambigüedad de findmnt -M.
 
-Solución completa prevista: consultar findmnt sin filtro (la lista nunca está vacía) y emparejar por ruta canónica, abortando ante cualquier error; comprobar el destino con /proc/self/mountinfo en cmd_mount. Requiere probar NTFS, exFAT-FUSE, LUKS y Btrfs (subvolúmenes y multidispositivo).
+Verificado con shims de findmnt:
+
+- Caso A: findmnt falla solo en --source con rc=1 → cmd_disable aborta por /proc/self/mountinfo, fstab intacto.
+- Caso B: findmnt falla solo en --source con rc=2 → aborta con "findmnt falló al consultar", fstab intacto.
+- Caso C: findmnt totalmente roto → aborta por la comprobación de salud, fstab intacto.
+- Caso D: findmnt normal → funcionamiento normal intacto.
 
 ### R6. UUID duplicados (corregido)
 
