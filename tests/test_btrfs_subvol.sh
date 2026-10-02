@@ -14,6 +14,8 @@
 #   - root (sudo): usa losetup y unshare -m.
 #   - btrfs-progs (mkfs.btrfs, btrfs). Si no está, skip con código 77.
 #   - NO toca /.snapshots real: monta dentro de `unshare -m`.
+#   - Incluye un control positivo (sin /.snapshots el disco SÍ debe aparecer) y
+#     usa un shim de lsblk que presenta los bucles como "part".
 #
 # Devuelve 0 si pasa, 1 si falla, 77 si no se puede ejecutar (skip).
 set -euo pipefail
@@ -45,6 +47,7 @@ FSTAB_ORIG="/tmp/btrfs_subvol_fstab.orig"
 TOP="/tmp/btrfs_root"
 SYS="/tmp/btrfs_system"
 SNAP="/.snapshots"
+SHIM_DIR="/tmp/shim_lsblk_btrfs"
 DEV=""
 SNAP_CREADO=0
 
@@ -55,6 +58,7 @@ cleanup() {
     umount "$TOP" 2>/dev/null || true
     [[ -n "$DEV" ]] && losetup -d "$DEV" 2>/dev/null || true
     rm -f "$IMG" "$FSTAB_FAKE" "$FSTAB_ORIG" "$FSTAB_FAKE".bak.* 2>/dev/null || true
+    rm -rf "$SHIM_DIR" 2>/dev/null || true
     rmdir "$SYS" "$TOP" 2>/dev/null || true
     # Sólo borrar /.snapshots si lo creamos nosotros (puede existir de antes).
     if [[ "$SNAP_CREADO" -eq 1 ]]; then rmdir "$SNAP" 2>/dev/null || true; fi
@@ -91,16 +95,34 @@ findmnt -n -o SOURCE,TARGET "$DEV" || true
 cp -a /etc/fstab "$FSTAB_ORIG"
 cp -a "$FSTAB_ORIG" "$FSTAB_FAKE"
 
-set +e
-OUT="$(DISCOFACIL_TEST=1 DISCOFACIL_FSTAB="$FSTAB_FAKE" bash "$SCRIPT_UNDER_TEST" --list 2>&1)"
-RC=$?
-set -e
-printf '%s\n' "$OUT"
+# Shim: lsblk presenta los dispositivos de bucle como "part" para que el filtro
+# TYPE de --list los vea. Todo lo demás (findmnt, blkid, montajes) es real.
+mkdir -p "$SHIM_DIR"
+REAL_LSBLK="$(command -v lsblk)"
+cat > "$SHIM_DIR/lsblk" <<SHIM
+#!/bin/sh
+"$REAL_LSBLK" "\$@" | sed 's/TYPE="loop"/TYPE="part"/'
+SHIM
+chmod +x "$SHIM_DIR/lsblk"
 
-[[ "$RC" -eq 0 ]] || fail "--list falló (rc=$RC)"
+list_out() {
+    PATH="$SHIM_DIR:$PATH" DISCOFACIL_TEST=1 DISCOFACIL_FSTAB="$FSTAB_FAKE" \
+        bash "$SCRIPT_UNDER_TEST" --list 2>&1
+}
+
+# Control positivo: solo @ montado fuera de rutas de sistema -> debe aparecer.
+umount "$SNAP"
+CTRL_OUT="$(list_out)"
+grep -qF "$UUID" <<<"$CTRL_OUT" \
+    || fail "control: el Btrfs debería aparecer sin /.snapshots; la prueba no ve el bucle"
+
+# Caso real: con @snap en /.snapshots -> debe quedar excluido.
+mount -o subvol=@snap "$DEV" "$SNAP"
+OUT="$(list_out)"
+printf '%s\n' "$OUT"
 if grep -qF "$UUID" <<<"$OUT"; then
-    fail "el UUID del Btrfs ($UUID) aparece en --list: el disco raíz se ofrece como candidato"
+    fail "el UUID del Btrfs ($UUID) aparece en --list con /.snapshots montado"
 fi
 
-ok "Btrfs con subvolumen en $SNAP correctamente excluido de --list (UUID $UUID ausente)"
+ok "Btrfs excluido de --list con /.snapshots (y visible sin él: control positivo)"
 exit 0

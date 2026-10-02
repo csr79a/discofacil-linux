@@ -3,9 +3,9 @@
 # tests/test_signal_trap.sh
 #
 # Qué verifica:
-#   Que el trap de SIGINT/SIGTERM de montar_disco.sh restaura /etc/fstab si la
-#   señal llega con una modificación en curso (salida 130 y mensaje "SIG<SEÑAL>
-#   recibido").
+#   Que el trap de SIGINT/SIGTERM/SIGHUP de montar_disco.sh restaura /etc/fstab
+#   si la señal llega con una modificación en curso (salida 130 y mensaje
+#   "SIG<SEÑAL> recibido").
 #
 # Cómo se ejecuta:
 #   sudo bash tests/test_signal_trap.sh
@@ -122,6 +122,7 @@ run_case() {
 
 run_case TERM
 run_case INT
+run_case HUP
 
-printf '\n[ OK ] trap de señales verificado (SIGTERM y SIGINT)\n'
+printf '\n[ OK ] trap de señales verificado (SIGTERM, SIGINT y SIGHUP)\n'
 exit 0

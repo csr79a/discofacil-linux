@@ -30,6 +30,7 @@ PROG="$(basename "$0")"
 FSTAB="/etc/fstab"
 if [[ "${DISCOFACIL_TEST:-}" == "1" && -n "${DISCOFACIL_FSTAB:-}" ]]; then
     FSTAB="$DISCOFACIL_FSTAB"
+    printf '[%s] AVISO: modo de pruebas, fstab = %s\n' "$PROG" "$FSTAB" >&2
 fi
 
 log()  { printf '[%s] %s\n' "$PROG" "$*"; }
