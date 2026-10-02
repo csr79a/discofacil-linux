@@ -16,14 +16,14 @@ La aplicación no formatea ni borra discos. Para montar, desmontar y editar `/et
 - Una distribución **Linux con systemd** y una sesión gráfica. Debian, Ubuntu, Arch Linux y Fedora suelen cumplir este requisito con sus instalaciones estándar.
 - Bash y herramientas de `util-linux`: `lsblk`, `findmnt`, `blkid` y `mount`.
 - Python 3.10 o posterior y PyQt6.
-- `sudo` para realizar el montaje persistente.
-- Para NTFS, `ntfs-3g`. Para exFAT basta con el soporte nativo del kernel (>= 5.7); si no está disponible, exfat-fuse o exfatprogs.
+- `sudo` para realizar el montaje persistente. Algunas instalaciones mínimas pueden no incluirlo; instálalo antes de usar la herramienta.
+- Para NTFS, `ntfs-3g`. Para exFAT basta con el soporte nativo del kernel (Linux 5.7 o posterior); si no está disponible, `exfat-fuse` o `exfatprogs`.
 
 La disponibilidad y el nombre de los paquetes pueden variar entre distribuciones. Los sistemas de archivos admitidos por el script son ext2/3/4, Btrfs, XFS, NTFS y exFAT, sujetos a que esté instalado el controlador correspondiente.
 
 ## Descargar y ejecutar
 
-Clona el repositorio (reemplaza `USUARIO` por el nombre de la cuenta que lo publique):
+Clona el repositorio:
 
 ```bash
 git clone https://github.com/csr79a/discofacil-linux.git
@@ -64,19 +64,23 @@ Sustituye `UUID` por el UUID exacto de la partición y usa el punto de montaje c
 
 ## Pruebas
 
-Las pruebas de las operaciones de desmontaje usan un `fstab` temporal y simulaciones de `findmnt`, `umount` y `systemctl`; no desmontan unidades reales ni escriben en `/etc/fstab`:
+Las pruebas del repositorio usan un `fstab` temporal y simulaciones de `findmnt`, `umount` y `systemctl`; no desmontan unidades reales ni escriben en `/etc/fstab`:
 
 ```bash
 bash tests/test_mount_operations.sh
 ```
 
+Cubren las operaciones de desmontaje y reversión. El flujo de `--mount` (validación previa, escritura de la entrada y rollback) se verificó manualmente con un `fstab` temporal dentro de un namespace de montaje (`unshare -m`), sin tocar el `/etc/fstab` real; todavía no está incorporado como prueba automatizada.
+
 ## Precauciones y limitaciones conocidas
 
 - Comprueba dos veces el dispositivo y su UUID antes de confirmar. Un montaje puede ocultar temporalmente los archivos que ya existan en el directorio de destino.
-- El script modifica `/etc/fstab`. Aunque crea una copia antes de añadir una entrada, revisa el resultado y conserva una copia de seguridad propia.
+- El script modifica `/etc/fstab`. Cada cambio crea una copia de seguridad; revisa el resultado y conserva una copia propia.
+- `--mount` valida antes de escribir en `fstab`: rechaza si el disco ya está montado en otro sitio, si el destino ya tiene algo montado, o si `fstab` ya usa ese destino o ya tiene una entrada para ese UUID. La entrada se escribe con `nofail`, de modo que un disco ausente no bloquee el arranque.
+- Si el montaje falla después de escribir la entrada, `--mount` intenta restaurar `fstab` desde la copia de seguridad. La restauración todavía usa `cp` directo (no atómica).
 - Los puntos de montaje deben ser rutas canónicas sencillas bajo `/mnt`. Los desmontajes comparan el UUID, el destino persistente y los montajes activos; ante discrepancias o ambigüedades se niegan a continuar.
-- Si la partición ya está montada en otro lugar, el comando de montaje todavía puede avisar que ya está montada; comprueba que el destino elegido coincide con el montaje actual antes de añadir una entrada persistente.
 - No se ha probado todavía en una matriz de Debian, Ubuntu, Arch y Fedora, ni en todas sus variantes. Tampoco está pensado para macOS o Windows, ni para distribuciones que no usen systemd.
+- Quedan limitaciones conocidas pendientes (UUID duplicados, interpretación de errores de `findmnt`, cancelación con `SIGKILL`); están listadas en `PENDIENTES.md`.
 
 ## Compatibilidad y aportes
 
