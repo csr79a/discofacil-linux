@@ -194,4 +194,15 @@ assert_unchanged
 assert_no_calls
 pass "ruta con traversal aborta sin efectos"
 
+# La compuerta de pruebas: sin DISCOFACIL_TEST=1 se ignora DISCOFACIL_FSTAB.
+got="$(env -u DISCOFACIL_TEST DISCOFACIL_FSTAB=/tmp/no-debe-usarse \
+    bash -c 'source "$1"; printf "%s" "$FSTAB"' _ "$SCRIPT" 2>/dev/null)"
+[[ "$got" == "/etc/fstab" ]]
+pass "sin DISCOFACIL_TEST=1 se ignora DISCOFACIL_FSTAB"
+
+got="$(DISCOFACIL_TEST=1 DISCOFACIL_FSTAB=/tmp/fstab-de-prueba \
+    bash -c 'source "$1"; printf "%s" "$FSTAB"' _ "$SCRIPT" 2>/dev/null)"
+[[ "$got" == "/tmp/fstab-de-prueba" ]]
+pass "con DISCOFACIL_TEST=1 se respeta DISCOFACIL_FSTAB"
+
 printf 'Resultado: %d pruebas correctas. Solo se usaron archivos y comandos temporales/simulados.\n' "$tests"
